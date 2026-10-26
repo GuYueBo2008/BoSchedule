@@ -1,0 +1,13 @@
+{
+  "name": "波日程 · BoSchedule",
+  "short_name": "波日程",
+  "description": "简洁、灵活的跨端课程与日程时间表",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f9f5",
+  "theme_color": "#315f50",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
