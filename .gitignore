@@ -1,0 +1,5 @@
+node_modules/
+build/windows/
+build/android/
+build/web/
+android/local.properties
