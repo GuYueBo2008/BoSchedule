@@ -49,6 +49,14 @@ export interface SyncDevice {
   lastSync?: string;
 }
 
+export interface SyncInfo {
+  name: string;
+  platform: SyncDevice['platform'];
+  pairCode: string;
+  port: number | null;
+  addresses: string[];
+}
+
 export interface HistoryItem {
   id: string;
   action: '创建' | '更新' | '删除' | '导入' | '导出' | '同步';

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CalendarCheck, CalendarPlus, CalendarRange, Check, Database, Settings } from 'lucide-react';
 import { createInitialData } from './data';
-import type { AppData, AppSettings, PageKey, ScheduleEvent, ScheduleTag, SyncDevice, Timetable } from './types';
+import type { AppData, AppSettings, PageKey, ScheduleEvent, ScheduleTag, SyncDevice, SyncInfo, Timetable } from './types';
 import { createId } from './utils';
 import { SchedulePage } from './pages/SchedulePage';
 import { ImportPage } from './pages/ImportPage';
@@ -11,9 +11,22 @@ import { SettingsModal } from './components/SettingsModal';
 const STORAGE_KEY = 'boschedule-data-v1';
 const CONNECTION_KEY = 'boschedule-sync-connection-v1';
 const TAG_COLORS = ['#39745c', '#496e9f', '#b37731', '#806695', '#a15e68', '#39757b'];
+const PAGE_ORDER: PageKey[] = ['schedule', 'import', 'data'];
+const IS_WINDOWS_ELECTRON = /Windows/i.test(navigator.userAgent) && /Electron/i.test(navigator.userAgent);
 
 interface SyncConnection { hostAddress: string; clientId: string }
 interface SyncResponse { data: Partial<AppData>; devices: SyncDevice[] }
+
+function detectPlatform(): SyncDevice['platform'] {
+  if (/Android/i.test(navigator.userAgent)) return 'Android';
+  if (/Windows/i.test(navigator.userAgent)) return 'Windows';
+  if (/Mac OS X|Macintosh/i.test(navigator.userAgent)) return 'macOS';
+  return 'Linux';
+}
+
+function initialSyncInfo(): SyncInfo {
+  return { name: '', platform: detectPlatform(), pairCode: '', port: null, addresses: [] };
+}
 
 function loadData(): AppData {
   const initial = createInitialData();
@@ -71,7 +84,8 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
   const [connection, setConnection] = useState<SyncConnection | null>(loadConnection);
-  const [localPairCode, setLocalPairCode] = useState('');
+  const [localSyncInfo, setLocalSyncInfo] = useState<SyncInfo>(initialSyncInfo);
+  const [slideDirection, setSlideDirection] = useState<'forward' | 'backward'>('forward');
   const toastTimer = useRef<number | undefined>(undefined);
   const retrying = useRef(false);
   const suppressAutoSync = useRef(false);
@@ -94,7 +108,13 @@ export default function App() {
     void fetch('/api/sync/info').then(async (response) => {
       if (!response.ok) return;
       const info = await response.json();
-      if (info.pairCode) setLocalPairCode(String(info.pairCode));
+      setLocalSyncInfo((previous) => ({
+        name: String(info.name || previous.name),
+        platform: ['Android', 'Windows', 'macOS', 'Linux'].includes(info.platform) ? info.platform : previous.platform,
+        pairCode: info.pairCode ? String(info.pairCode) : previous.pairCode,
+        port: typeof info.port === 'number' ? info.port : previous.port,
+        addresses: Array.isArray(info.addresses) && info.addresses.length ? info.addresses : previous.addresses,
+      }));
     }).catch(() => undefined);
   }, []);
 
@@ -267,15 +287,16 @@ export default function App() {
     setData((previous) => ({ ...previous, settings: { ...previous.settings, ...settings } }));
   }
 
-  async function pairDevice(device: Omit<SyncDevice, 'id' | 'pairedAt' | 'lastSync'>, code: string) {
+  async function pairDevice(address: string, code: string) {
     const clientId = connectionRef.current?.clientId || createId('client');
-    const nextConnection = { hostAddress: device.address, clientId };
+    const nextConnection = { hostAddress: address, clientId };
+    const localAddress = localSyncInfo.addresses[0] && localSyncInfo.port ? `${localSyncInfo.addresses[0]}:${localSyncInfo.port}` : '';
     const result = await requestSync(nextConnection, '/pair', {
       clientId,
       code,
-      name: device.name,
-      platform: device.platform,
-      address: device.address,
+      name: localSyncInfo.name || `${localSyncInfo.platform} 设备`,
+      platform: localSyncInfo.platform,
+      address: localAddress,
       data: syncPayload(dataRef.current),
     }) as SyncResponse;
     localStorage.setItem(CONNECTION_KEY, JSON.stringify(nextConnection));
@@ -288,6 +309,10 @@ export default function App() {
     if (current) {
       const result = await requestSync(current, '/remove-device', { clientId: current.clientId, deviceId: id });
       setData((previous) => ({ ...previous, devices: result.devices || [] }));
+      if (id === `device_${current.clientId}`) {
+        localStorage.removeItem(CONNECTION_KEY);
+        setConnection(null);
+      }
     } else {
       setData((previous) => ({ ...previous, devices: previous.devices.filter((device) => device.id !== id) }));
     }
@@ -316,23 +341,30 @@ export default function App() {
     { id: 'data' as const, label: '数据同步', icon: Database },
   ];
 
+  function navigatePage(nextPage: PageKey) {
+    if (nextPage === page) return;
+    setSlideDirection(PAGE_ORDER.indexOf(nextPage) >= PAGE_ORDER.indexOf(page) ? 'forward' : 'backward');
+    setPage(nextPage);
+  }
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell${IS_WINDOWS_ELECTRON ? ' windows-electron' : ''}`}>
+      {IS_WINDOWS_ELECTRON && <div className="window-drag-region"><span>波日程</span><small>BO SCHEDULE</small></div>}
       <aside className="nav-rail">
-        <button className="brand" onClick={() => setPage('schedule')} aria-label="波日程首页"><span className="brand-mark"><CalendarCheck size={25} /></span><strong>波日程</strong><small>BO SCHEDULE</small></button>
-        <nav className="rail-nav" aria-label="主导航">{navigation.map((item) => <button key={item.id} className={page === item.id ? 'is-active' : ''} onClick={() => setPage(item.id)}><span><item.icon size={22} /></span><small>{item.label}</small></button>)}</nav>
+        <button className="brand" onClick={() => navigatePage('schedule')} aria-label="波日程首页"><span className="brand-mark"><CalendarCheck size={25} /></span><strong>波日程</strong><small>BO SCHEDULE</small></button>
+        <nav className="rail-nav" aria-label="主导航">{navigation.map((item) => <button key={item.id} className={page === item.id ? 'is-active' : ''} onClick={() => navigatePage(item.id)}><span><item.icon size={22} /></span><small>{item.label}</small></button>)}</nav>
         <div className="rail-bottom"><div className="local-status"><i /><span>本地已保存</span></div><button className={`rail-settings ${settingsOpen ? 'is-active' : ''}`} onClick={() => setSettingsOpen(true)}><Settings size={21} /><small>设置</small></button></div>
       </aside>
 
-      <header className="mobile-app-bar"><button className="brand" onClick={() => setPage('schedule')}><span className="brand-mark"><CalendarCheck size={22} /></span><strong>波日程</strong></button><button className="icon-button" onClick={() => setSettingsOpen(true)} aria-label="设置"><Settings size={21} /></button></header>
+      <header className="mobile-app-bar"><button className="brand" onClick={() => navigatePage('schedule')}><span className="brand-mark"><CalendarCheck size={22} /></span><strong>波日程</strong></button><button className="icon-button" onClick={() => setSettingsOpen(true)} aria-label="设置"><Settings size={21} /></button></header>
 
-      <main className="app-main" key={page}>
-        {page === 'schedule' && <SchedulePage timetable={activeTimetable} events={data.events} tags={data.tags} {...sharedTableProps} onUpdateEvent={updateEvent} onDeleteEvent={deleteEvent} onNavigateImport={() => setPage('import')} notify={notify} onExported={recordExport} />}
+      <main className={`app-main page-slide-${slideDirection}`} key={page}>
+        {page === 'schedule' && <SchedulePage timetable={activeTimetable} events={data.events} tags={data.tags} {...sharedTableProps} onUpdateEvent={updateEvent} onDeleteEvent={deleteEvent} onNavigateImport={() => navigatePage('import')} notify={notify} onExported={recordExport} />}
         {page === 'import' && <ImportPage timetables={data.timetables} activeTimetableId={activeTimetable.id} events={data.events} tags={data.tags} apiKey={data.settings.apiKey} onApiKeyChange={(apiKey) => updateSettings({ apiKey })} onCreateEvent={createEvent} onImportEvents={importEvents} onAddTag={addTag} onEnsureTags={ensureTags} onDeleteTag={deleteTag} notify={notify} />}
-        {page === 'data' && <DataPage {...sharedTableProps} activeTimetableId={activeTimetable.id} events={data.events} tags={data.tags} history={data.history} devices={data.devices} settings={data.settings} localPairCode={localPairCode} onSettingsChange={updateSettings} onPairDevice={pairDevice} onDeleteDevice={removeDevice} onSyncDevice={syncDevice} onImport={resolveImport} onExported={recordExport} notify={notify} />}
+        {page === 'data' && <DataPage {...sharedTableProps} activeTimetableId={activeTimetable.id} events={data.events} tags={data.tags} history={data.history} devices={data.devices} settings={data.settings} localSyncInfo={localSyncInfo} onSettingsChange={updateSettings} onPairDevice={pairDevice} onDeleteDevice={removeDevice} onSyncDevice={syncDevice} onImport={resolveImport} onExported={recordExport} notify={notify} />}
       </main>
 
-      <nav className="bottom-nav" aria-label="移动端主导航">{navigation.map((item) => <button key={item.id} className={page === item.id ? 'is-active' : ''} onClick={() => setPage(item.id)}><span><item.icon size={21} /></span><small>{item.label}</small></button>)}</nav>
+      <nav className="bottom-nav" aria-label="移动端主导航">{navigation.map((item) => <button key={item.id} className={page === item.id ? 'is-active' : ''} onClick={() => navigatePage(item.id)}><span><item.icon size={21} /></span><small>{item.label}</small></button>)}</nav>
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} settings={data.settings} onChange={updateSettings} />
       {toast && <div className="toast" key={toast.id}><span><Check size={16} /></span>{toast.message}</div>}
     </div>

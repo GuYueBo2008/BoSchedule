@@ -97,6 +97,22 @@ function isLocalRequest(request) {
   return Object.values(os.networkInterfaces()).some((entries) => entries?.some((entry) => entry.address === address));
 }
 
+function localNetworkAddresses() {
+  const addresses = [];
+  Object.values(os.networkInterfaces()).forEach((entries) => {
+    entries?.forEach((entry) => {
+      if (!entry.internal && (entry.family === 'IPv4' || entry.family === 4)) addresses.push(entry.address);
+    });
+  });
+  return addresses.length ? addresses : ['127.0.0.1'];
+}
+
+function localPlatform() {
+  if (process.platform === 'win32') return 'Windows';
+  if (process.platform === 'darwin') return 'macOS';
+  return 'Linux';
+}
+
 function authorizedDevice(clientId) {
   return store.devices.find((device) => device.clientId === clientId);
 }
@@ -115,7 +131,15 @@ export function createSyncApiHandler() {
     if (request.method === 'OPTIONS') return send(response, 204, {});
     try {
       if (request.method === 'GET' && url.pathname === '/api/sync/info') {
-        return send(response, 200, { service: 'BoSchedule', version: 1, name: os.hostname(), pairCode: isLocalRequest(request) ? store.pairCode : undefined });
+        return send(response, 200, {
+          service: 'BoSchedule',
+          version: 1,
+          name: os.hostname(),
+          platform: localPlatform(),
+          port: request.socket.localPort || null,
+          addresses: localNetworkAddresses(),
+          pairCode: isLocalRequest(request) ? store.pairCode : undefined,
+        });
       }
       if (request.method === 'POST' && url.pathname === '/api/sync/pair') {
         const body = await readBody(request);
@@ -153,7 +177,7 @@ export function createSyncApiHandler() {
       if (request.method === 'POST' && url.pathname === '/api/sync/remove-device') {
         const body = await readBody(request);
         if (!authorizedDevice(body.clientId)) return send(response, 403, { error: '设备尚未配对' });
-        store.devices = store.devices.filter((device) => device.id !== body.deviceId || device.clientId === body.clientId);
+        store.devices = store.devices.filter((device) => device.id !== body.deviceId);
         saveStore();
         return send(response, 200, { ok: true, devices: publicDevices() });
       }

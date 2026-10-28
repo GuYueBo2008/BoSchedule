@@ -1,7 +1,7 @@
 {
   "name": "boschedule",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "简洁、灵活的多平台日程与课程表应用",
   "author": "古月波",
   "type": "module",
@@ -39,7 +39,7 @@
     "lucide-react": "^0.468.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "xlsx": "^0.18.5"
+    "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.3",

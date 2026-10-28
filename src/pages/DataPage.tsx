@@ -4,7 +4,7 @@ import {
   Laptop, Layers3, LoaderCircle, MonitorSmartphone, Plus, RefreshCw, ShieldCheck,
   Smartphone, Trash2, Upload, Wifi,
 } from 'lucide-react';
-import type { AppSettings, HistoryItem, ScheduleEvent, ScheduleTag, SyncDevice, Timetable } from '../types';
+import type { AppSettings, HistoryItem, ScheduleEvent, ScheduleTag, SyncDevice, SyncInfo, Timetable } from '../types';
 import { formatDateTime } from '../utils';
 import { EmptyState, Field, Modal, Toggle } from '../components/ui';
 import { ExportModal, ImportModal } from '../components/DataTransfer';
@@ -18,7 +18,7 @@ export function DataPage({
   history,
   devices,
   settings,
-  localPairCode,
+  localSyncInfo,
   onSelectTimetable,
   onCreateTimetable,
   onDeleteTimetable,
@@ -37,12 +37,12 @@ export function DataPage({
   history: HistoryItem[];
   devices: SyncDevice[];
   settings: AppSettings;
-  localPairCode: string;
+  localSyncInfo: SyncInfo;
   onSelectTimetable: (id: string) => void;
   onCreateTimetable: (name: string, termStart: string) => void;
   onDeleteTimetable: (id: string) => void;
   onSettingsChange: (settings: Partial<AppSettings>) => void;
-  onPairDevice: (device: Omit<SyncDevice, 'id' | 'pairedAt' | 'lastSync'>, code: string) => Promise<void>;
+  onPairDevice: (address: string, code: string) => Promise<void>;
   onDeleteDevice: (id: string) => Promise<void>;
   onSyncDevice: (id: string) => Promise<void>;
   onImport: (events: ScheduleEvent[], newTags: ScheduleTag[]) => void;
@@ -55,12 +55,18 @@ export function DataPage({
   const [pairOpen, setPairOpen] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [deleteDeviceId, setDeleteDeviceId] = useState<string | null>(null);
-  const [pairName, setPairName] = useState('');
-  const [pairAddress, setPairAddress] = useState(() => window.location.host);
+  const [pairIp, setPairIp] = useState('');
+  const [pairPort, setPairPort] = useState(() => String(localSyncInfo.port || 4173));
   const [pairCode, setPairCode] = useState('');
-  const [pairPlatform, setPairPlatform] = useState<SyncDevice['platform']>('Android');
   const [pairBusy, setPairBusy] = useState(false);
   const storageSize = useMemo(() => Math.max(1, Math.round(new Blob([JSON.stringify({ events, timetables, tags })]).size / 1024)), [events, timetables, tags]);
+
+  function openPairing() {
+    setPairIp('');
+    setPairPort(String(localSyncInfo.port || 4173));
+    setPairCode('');
+    setPairOpen(true);
+  }
 
   async function sync(id: string) {
     setSyncingId(id);
@@ -75,18 +81,19 @@ export function DataPage({
   }
 
   async function pair() {
-    if (!pairName.trim() || !pairAddress.trim() || pairCode.trim().length !== 6) {
-      notify('请完整填写设备名称、电脑主机地址和 6 位配对码');
+    const port = Number(pairPort);
+    if (!pairIp.trim() || !Number.isInteger(port) || port < 1 || port > 65535 || pairCode.trim().length !== 6) {
+      notify('请填写目标设备 IP、有效端口和 6 位配对码');
       return;
     }
     setPairBusy(true);
     try {
-      await onPairDevice({ name: pairName.trim(), address: pairAddress.trim(), platform: pairPlatform }, pairCode);
+      await onPairDevice(`${pairIp.trim()}:${port}`, pairCode.trim());
       setPairOpen(false);
-      setPairName(''); setPairCode('');
+      setPairIp(''); setPairCode('');
       notify('设备配对成功，可以开始同步');
     } catch (error) {
-      notify(error instanceof Error ? error.message : '配对失败，请检查主机地址与配对码');
+      notify(error instanceof Error ? error.message : '配对失败，请检查目标设备地址与配对码');
     } finally {
       setPairBusy(false);
     }
@@ -145,17 +152,30 @@ export function DataPage({
         {devices.length ? (
           <div className="device-list">{devices.map((device) => <div className="device-row" key={device.id}><span className="device-icon">{device.platform === 'Android' ? <Smartphone size={22} /> : <Laptop size={22} />}</span><div className="device-info"><strong>{device.name}<span>{device.platform}</span></strong><small>{device.address} · 上次同步 {formatDateTime(device.lastSync)}</small></div><span className="paired-badge"><i /> 已配对</span><button className="button button-tonal" disabled={syncingId === device.id} onClick={() => sync(device.id)}>{syncingId === device.id ? <LoaderCircle size={16} className="spin" /> : <RefreshCw size={16} />} {syncingId === device.id ? '同步中' : '立即同步'}</button>{deleteDeviceId === device.id ? <button className="text-danger" onClick={() => { void removeDevice(device.id); }}>确认移除</button> : <button className="icon-button subtle-danger" onClick={() => setDeleteDeviceId(device.id)} aria-label={`移除${device.name}`}><Trash2 size={17} /></button>}</div>)}</div>
         ) : (
-          <EmptyState icon={<MonitorSmartphone size={29} />} title="还没有配对设备" description="在电脑和手机上打开波日程，输入配对码即可开始。" action={<button className="button button-primary" onClick={() => setPairOpen(true)}><Plus size={17} /> 配对新设备</button>} />
+          <EmptyState icon={<MonitorSmartphone size={29} />} title="还没有配对设备" description="在另一台设备打开波日程，输入本机地址与配对码即可开始。" action={<button className="button button-primary" onClick={openPairing}><Plus size={17} /> 配对新设备</button>} />
         )}
-        {devices.length > 0 && <button className="add-device-button" onClick={() => setPairOpen(true)}><Plus size={16} /> 配对新设备</button>}
+        {devices.length > 0 && <button className="add-device-button" onClick={openPairing}><Plus size={16} /> 配对新设备</button>}
       </section>
 
       <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} timetables={timetables} activeTimetableId={activeTimetableId} events={events} tags={tags} onExported={onExported} notify={notify} />
       <ImportModal open={importOpen} onClose={() => setImportOpen(false)} timetables={timetables} activeTimetableId={activeTimetableId} events={events} tags={tags} onImport={onImport} notify={notify} />
       <TimetableManager open={manageOpen} onClose={() => setManageOpen(false)} timetables={timetables} events={events} activeId={activeTimetableId} onSelect={onSelectTimetable} onCreate={onCreateTimetable} onDelete={onDeleteTimetable} />
-      <Modal open={pairOpen} onClose={() => !pairBusy && setPairOpen(false)} title="配对新设备" subtitle="在电脑启动波日程，并确保两台设备连接同一局域网。" size="small">
-        <div className="local-pair-code"><span>电脑主机配对码</span><strong>{localPairCode ? `${localPairCode.slice(0, 3)} ${localPairCode.slice(3)}` : '--- ---'}</strong><small>{localPairCode ? '在另一台设备上输入此码完成双向验证' : '请在电脑主机的此页面查看配对码'}</small></div>
-        <div className="pair-form"><Field label="本机名称"><input value={pairName} onChange={(event) => setPairName(event.target.value)} placeholder="例如：古月波的手机" /></Field><Field label="本机类型"><select value={pairPlatform} onChange={(event) => setPairPlatform(event.target.value as SyncDevice['platform'])}><option>Android</option><option>Windows</option><option>macOS</option><option>Linux</option></select></Field><Field label="电脑主机地址"><input value={pairAddress} onChange={(event) => setPairAddress(event.target.value)} placeholder="192.168.1.8:5173" /></Field><Field label="主机配对码"><input value={pairCode} onChange={(event) => setPairCode(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6 位数字" inputMode="numeric" /></Field></div>
+      <Modal open={pairOpen} onClose={() => !pairBusy && setPairOpen(false)} title="配对新设备" subtitle="本机平台与配对码自动识别，输入目标设备的 IP、端口和配对码即可。" size="small">
+        <div className="local-pair-code">
+          <div className="pair-local-heading"><span>本机配对码</span><b>{localSyncInfo.platform}</b></div>
+          <strong className="pair-code-value">{localSyncInfo.pairCode ? `${localSyncInfo.pairCode.slice(0, 3)} ${localSyncInfo.pairCode.slice(3)}` : '--- ---'}</strong>
+          <small>{localSyncInfo.pairCode ? '在另一台设备上输入此码完成双向验证' : '当前页面未连接同步服务，请通过 npm start 或桌面版打开'}</small>
+          <div className="local-sync-details">
+            <div><span>本机 IP</span><b>{localSyncInfo.addresses.join(' · ') || '未检测到'}</b></div>
+            <div><span>本机端口</span><b>{localSyncInfo.port || '—'}</b></div>
+            <div><span>设备名称</span><b>{localSyncInfo.name || `${localSyncInfo.platform} 设备`}</b></div>
+          </div>
+        </div>
+        <div className="pair-form">
+          <Field label="目标设备 IP"><input value={pairIp} onChange={(event) => setPairIp(event.target.value)} placeholder="192.168.1.8" inputMode="decimal" /></Field>
+          <Field label="目标端口"><input type="number" min={1} max={65535} value={pairPort} onChange={(event) => setPairPort(event.target.value)} placeholder="4173" inputMode="numeric" /></Field>
+          <Field label="6 位配对码" hint="在目标设备的配对弹窗中查看" className="field-full"><input value={pairCode} onChange={(event) => setPairCode(event.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6 位数字" inputMode="numeric" /></Field>
+        </div>
         <div className="modal-actions"><button className="button button-plain" disabled={pairBusy} onClick={() => setPairOpen(false)}>取消</button><button className="button button-primary" disabled={pairBusy} onClick={() => { void pair(); }}>{pairBusy ? <LoaderCircle size={17} className="spin" /> : <Wifi size={17} />} {pairBusy ? '正在配对…' : '开始配对'}</button></div>
       </Modal>
     </div>
