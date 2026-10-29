@@ -189,7 +189,7 @@ export function ImportPage({
   return (
     <div className="page import-page">
       <header className="page-heading">
-        <div><div className="eyebrow"><span /> QUICK CAPTURE</div><h1>日程导入</h1><p>手动记录，或让 AI 从一段文字、一张课表中提取安排。</p></div>
+        <div><h1>日程导入</h1><p>手动记录，或让 AI 从一段文字、一张课表中提取安排。</p></div>
         <div className="segmented page-tabs">
           <button className={mode === 'manual' ? 'is-active' : ''} onClick={() => setMode('manual')}><Plus size={17} /> 手动添加</button>
           <button className={mode === 'ai' ? 'is-active' : ''} onClick={() => setMode('ai')}><WandSparkles size={17} /> AI 智能提取</button>

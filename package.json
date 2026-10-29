@@ -28,14 +28,15 @@
       "electron/**/*",
       "server.mjs",
       "sync-server.mjs",
-      "package.json",
-      "!node_modules/**/*"
+      "media-server.mjs",
+      "package.json"
     ]
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
     "@capacitor/core": "^8.5.3",
     "html-to-image": "^1.11.11",
+    "jszip": "^3.10.2",
     "lucide-react": "^0.468.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

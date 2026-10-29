@@ -112,7 +112,7 @@ export function DataPage({
   return (
     <div className="page data-page">
       <header className="page-heading">
-        <div><div className="eyebrow"><span /> YOUR DATA, YOUR RULES</div><h1>数据与同步</h1><p>本地优先、自由迁移，在你的设备之间保持一致。</p></div>
+        <div><h1>数据与同步</h1><p>本地优先、自由迁移，在你的设备之间保持一致。</p></div>
         <div className="heading-actions"><button className="button button-tonal" onClick={() => setImportOpen(true)}><Upload size={18} /> 导入</button><button className="button button-primary" onClick={() => setExportOpen(true)}><Download size={18} /> 导出日程</button></div>
       </header>
 

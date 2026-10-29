@@ -19,7 +19,7 @@
 
 ### 日程导入
 
-- 手动录入名称、详情、时间段、地点、标签，并可添加多张图片（以 Base64 保存到本地）
+- 手动录入名称、详情、时间段、地点、标签，并可添加多张图片（保存到数据库 `pic` 文件夹）
 - 配置 DeepSeek API Key 后，可从文字或图片中自动识别日程，并将原文 / 原图保存到「来源」字段
 - 导入时必须选择目标时间表，避免不同时间表的日程混在一起
 - 标签管理：查看每个标签下的日程数量，支持新增、删除；删除时提示受影响的日程并可将它们迁移到其他标签
@@ -27,7 +27,8 @@
 ### 数据同步与管理
 
 - 记录日程的编辑历史
-- 导出 / 导入 JSON 日程文件，可按时间表、按标签筛选导出
+- 导出 / 导入日程：导出为 ZIP 压缩包，包含 `boschedule.json` 与 `pic` 文件夹中的图片，可按时间表、按标签筛选
+- 导入支持 `.zip` 与 `.boschedule.json`；ZIP 中的图片会恢复到本机 `pic` 文件夹
 - 导入时遇到本地不存在的标签，可选择新建标签或映射到已有标签
 - 导入冲突时可选择覆盖或忽略
 - 局域网同步：先配对，再手动或自动同步，以最后编辑时间为准
@@ -47,8 +48,9 @@
 | --- | --- |
 | 前端 | React 19、TypeScript 5.8、Vite 7 |
 | 图标 | lucide-react |
-| 表格导出 | xlsx |
+| 表格导出 | xlsx-js-style |
 | 图片导出 | html-to-image |
+| 压缩包 | JSZip |
 | 本地存储 | localStorage |
 | 局域网同步 | Node.js 原生 `http` 服务（`sync-server.mjs`） |
 | 离线能力 | Web App Manifest + Service Worker |
@@ -98,15 +100,18 @@ npm start          # http://localhost:4173
 ├── public/               # 图标、Manifest、Service Worker
 ├── server.mjs            # 生产静态服务与同步 API 入口
 ├── sync-server.mjs       # 局域网同步接口、配对码与数据合并
+├── media-server.mjs      # 图片存储、ZIP 导出与 ZIP 导入
 └── vite.config.ts        # 开发服务器与同步中间件
 ```
 
 ## 数据说明
 
 - 日程、标签、时间表、设置与历史记录保存在浏览器 `localStorage`（`boschedule-data-v1`）
+- 图片保存在数据库目录 `~/.boschedule/pic/`，日程中只保存 `/api/pic/...` 引用
+- 导出 ZIP 时会把被引用的图片一并打包；旧的内嵌 Base64 图片会在导出时自动转存到 `pic`
 - DeepSeek API Key 仅保存在本机，不会上传到第三方服务器
-- 导入的图片以 Base64 形式保存在本地数据中
 - 局域网同步通过配对码鉴权，数据仅在已配对的设备之间传输
+- 移动端没有本地服务时，图片会回退为内嵌 Base64，导出回退为 JSON
 
 ## 主题
 

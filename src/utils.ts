@@ -109,6 +109,24 @@ export function fileToDataUrl(file: File) {
   });
 }
 
+export async function uploadImage(file: File) {
+  const dataUrl = await fileToDataUrl(file);
+  try {
+    const response = await fetch('/api/pic', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataUrl }),
+    });
+    if (response.ok) {
+      const info = await response.json();
+      if (typeof info.url === 'string' && info.url.startsWith('/api/pic/')) return info.url;
+    }
+  } catch {
+    /* 离线或移动端环境回退为内嵌图片 */
+  }
+  return dataUrl;
+}
+
 export function parseWeekSelection(input: string) {
   const weeks = new Set<number>();
   input.split(/[,，\s]+/).filter(Boolean).forEach((part) => {

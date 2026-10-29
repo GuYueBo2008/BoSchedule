@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { createSyncApiHandler } from './sync-server.mjs';
+import { createMediaApiHandler } from './media-server.mjs';
 
 export default defineConfig({
   plugins: [
@@ -9,6 +10,7 @@ export default defineConfig({
       name: 'boschedule-lan-sync',
       configureServer(server) {
         server.middlewares.use(createSyncApiHandler());
+        server.middlewares.use(createMediaApiHandler());
       },
     },
   ],

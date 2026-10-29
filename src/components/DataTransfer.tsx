@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, Check, ChevronRight, Download, FileJson, FolderInput, LoaderCircle,
+  AlertTriangle, Check, ChevronRight, Download, FileArchive, FolderInput, LoaderCircle,
   UploadCloud,
 } from 'lucide-react';
 import type { ImportBundle, ScheduleEvent, ScheduleTag, Timetable } from '../types';
-import { createId, DAY_NAMES, downloadText, eventSignature, eventToExport } from '../utils';
+import { createId, DAY_NAMES, downloadBlob, downloadText, eventSignature, eventToExport } from '../utils';
 import { Field, Modal, TagPicker } from './ui';
 
 export function ExportModal({
@@ -29,6 +29,7 @@ export function ExportModal({
   const [timetableId, setTimetableId] = useState(activeTimetableId);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
 
   const candidates = useMemo(() => events.filter((event) => event.timetableId === timetableId && (!selectedTags.length || event.tags.some((tag) => selectedTags.includes(tag)))), [events, timetableId, selectedTags]);
 
@@ -52,7 +53,7 @@ export function ExportModal({
     setSelectedIds(new Set(next.map((event) => event.id)));
   }
 
-  function exportData() {
+  async function exportData() {
     const selected = events.filter((event) => selectedIds.has(event.id) && event.timetableId === timetableId);
     if (!selected.length) {
       notify('请至少选择一项日程');
@@ -64,14 +65,30 @@ export function ExportModal({
       app: 'BoSchedule', version: 1, exportedAt: new Date().toISOString(),
       timetables: [timetable], events: selected.map(eventToExport), tags: tags.filter((tag) => usedTagNames.has(tag.name)),
     };
-    downloadText(JSON.stringify(bundle, null, 2), `${timetable.name}-${selected.length}项日程.boschedule.json`);
+    setBusy(true);
+    try {
+      const response = await fetch('/api/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bundle }),
+      });
+      if (!response.ok) throw new Error('服务端打包不可用');
+      const blob = await response.blob();
+      if (!blob.size) throw new Error('导出内容为空');
+      downloadBlob(blob, `${timetable.name}-${selected.length}项日程.zip`);
+      notify(`已导出 ${selected.length} 项日程及图片`);
+    } catch {
+      downloadText(JSON.stringify(bundle, null, 2), `${timetable.name}-${selected.length}项日程.boschedule.json`);
+      notify(`已导出 ${selected.length} 项日程（当前环境不支持图片打包）`);
+    } finally {
+      setBusy(false);
+    }
     onExported(`导出「${timetable.name}」中的 ${selected.length} 项日程`);
-    notify(`已导出 ${selected.length} 项日程`);
     onClose();
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="导出日程" subtitle="导出为开放的 BoSchedule JSON 文件，图片与来源也会保留。" size="large">
+    <Modal open={open} onClose={onClose} title="导出日程" subtitle="导出为 ZIP 压缩包，包含日程数据与 pic 文件夹中的图片。" size="large">
       <div className="transfer-form-grid">
         <Field label="从时间表导出"><select value={timetableId} onChange={(event) => changeTimetable(event.target.value)}>{timetables.map((table) => <option value={table.id} key={table.id}>{table.name}</option>)}</select></Field>
         <Field label="按标签筛选"><TagPicker tags={tags} value={selectedTags} onChange={changeTags} /></Field>
@@ -86,8 +103,8 @@ export function ExportModal({
           {!candidates.length && <div className="selection-empty">当前筛选条件下没有日程</div>}
         </div>
       </div>
-      <div className="export-file-note"><FileJson size={18} /><span>.boschedule.json</span><small>包含标签、周期规则、Base64 图片与原始来源</small></div>
-      <div className="modal-actions"><button className="button button-plain" onClick={onClose}>取消</button><button className="button button-primary" onClick={exportData} disabled={!selectedIds.size}><Download size={17} /> 导出 {selectedIds.size} 项日程</button></div>
+      <div className="export-file-note"><FileArchive size={18} /><span>.zip</span><small>包含 boschedule.json 与 pic 图片</small></div>
+      <div className="modal-actions"><button className="button button-plain" disabled={busy} onClick={onClose}>取消</button><button className="button button-primary" onClick={exportData} disabled={!selectedIds.size || busy}>{busy ? <LoaderCircle size={17} className="spin" /> : <Download size={17} />} {busy ? '正在打包…' : `导出 ${selectedIds.size} 项日程`}</button></div>
     </Modal>
   );
 }
@@ -152,7 +169,21 @@ export function ImportModal({
     if (!file) return;
     setReading(true);
     try {
-      const parsed = JSON.parse(await file.text()) as ImportBundle;
+      let parsed: ImportBundle;
+      if (file.name.toLowerCase().endsWith('.zip')) {
+        const response = await fetch('/api/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/zip' },
+          body: file,
+        });
+        if (!response.ok) {
+          const failure = await response.json().catch(() => null);
+          throw new Error(failure?.error || 'ZIP 导入需要桌面版或 npm start 环境');
+        }
+        parsed = (await response.json()).bundle as ImportBundle;
+      } else {
+        parsed = JSON.parse(await file.text()) as ImportBundle;
+      }
       if (parsed.app !== 'BoSchedule' || !Array.isArray(parsed.events)) throw new Error('这不是有效的波日程导出文件');
       setBundle(parsed);
       const mappings: Record<string, string> = {};
@@ -196,16 +227,16 @@ export function ImportModal({
 
   return (
     <Modal open={open} onClose={onClose} title="导入日程" subtitle="选择目标时间表，并妥善处理新标签与时间冲突。" size="large">
-      <input ref={inputRef} hidden type="file" accept=".json,.boschedule,application/json" onChange={(event) => readBundle(event.target.files?.[0])} />
+      <input ref={inputRef} hidden type="file" accept=".zip,.json,.boschedule,application/json,application/zip" onChange={(event) => readBundle(event.target.files?.[0])} />
       {!bundle ? (
         <button className="file-dropzone" onClick={() => inputRef.current?.click()}>
           {reading ? <LoaderCircle size={30} className="spin" /> : <UploadCloud size={30} />}
           <strong>{reading ? '正在读取文件…' : '选择波日程文件'}</strong>
-          <p>支持 .boschedule.json 文件</p><span>文件仅在本机解析，不会上传到云端</span>
+          <p>支持 .zip（含图片）或 .boschedule.json</p><span>ZIP 中的图片会恢复到本机 pic 文件夹</span>
         </button>
       ) : (
         <div className="import-review">
-          <div className="file-summary"><span><FileJson size={22} /></span><div><strong>已读取 {bundle.events.length} 项日程</strong><small>导出于 {new Date(bundle.exportedAt).toLocaleString('zh-CN')}</small></div><button onClick={() => { setBundle(null); setChoices({}); }}>重新选择</button></div>
+          <div className="file-summary"><span><FileArchive size={22} /></span><div><strong>已读取 {bundle.events.length} 项日程</strong><small>{bundle.events.reduce((count, event) => count + (event.images?.length || 0), 0)} 张图片 · 导出于 {new Date(bundle.exportedAt).toLocaleString('zh-CN')}</small></div><button onClick={() => { setBundle(null); setChoices({}); }}>重新选择</button></div>
           <Field label="导入到哪个时间表" className="field-full"><select value={targetId} onChange={(event) => { setTargetId(event.target.value); setChoices({}); }}>{timetables.map((table) => <option value={table.id} key={table.id}>{table.name}</option>)}</select></Field>
           {unknownTags.length > 0 && (
             <section className="resolve-section"><div className="resolve-heading"><span><FolderInput size={18} /></span><div><h3>处理新标签</h3><p>可以创建新标签，或同步为本地已有标签。</p></div></div>{unknownTags.map((name) => <div className="tag-mapping-row" key={name}><span className="incoming-tag">{name}</span><ChevronRight size={16} /><select value={tagMappings[name]} onChange={(event) => setTagMappings({ ...tagMappings, [name]: event.target.value })}><option value="__create__">创建新标签「{name}」</option>{tags.map((tag) => <option value={tag.name} key={tag.id}>同步为「{tag.name}」</option>)}</select></div>)}</section>

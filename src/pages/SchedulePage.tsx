@@ -97,7 +97,6 @@ export function SchedulePage({
     <div className="page schedule-page">
       <header className="page-heading">
         <div>
-          <div className="eyebrow"><span /> MY SCHEDULE</div>
           <h1>我的时间表</h1>
           <p>本周 {weekEvents.length} 项安排，把时间留给重要的事。</p>
         </div>

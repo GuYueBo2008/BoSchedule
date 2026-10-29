@@ -1,7 +1,7 @@
-import { useRef } from 'react';
-import { ImagePlus, Trash2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { ImagePlus, LoaderCircle, Trash2 } from 'lucide-react';
 import type { ScheduleEvent, Timetable, ScheduleTag } from '../types';
-import { DAY_NAMES, fileToDataUrl } from '../utils';
+import { DAY_NAMES, uploadImage } from '../utils';
 import { ColorPicker, Field, TagPicker } from './ui';
 
 export type EventDraft = Omit<ScheduleEvent, 'id' | 'createdAt' | 'updatedAt'>;
@@ -39,12 +39,19 @@ export function EventForm({
   showTimetable?: boolean;
 }) {
   const imageInput = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
   const patch = (value: Partial<EventDraft>) => onChange({ ...draft, ...value });
 
   async function addImages(files: FileList | null) {
     if (!files?.length) return;
-    const images = await Promise.all([...files].map(fileToDataUrl));
-    patch({ images: [...draft.images, ...images] });
+    setUploading(true);
+    try {
+      const images = await Promise.all([...files].map(uploadImage));
+      patch({ images: [...draft.images, ...images] });
+    } finally {
+      setUploading(false);
+      if (imageInput.current) imageInput.current.value = '';
+    }
   }
 
   return (
@@ -113,7 +120,7 @@ export function EventForm({
         <textarea rows={4} value={draft.detail} onChange={(event) => patch({ detail: event.target.value })} placeholder="补充课程内容、会议议程或注意事项…" />
       </Field>
       <div className="field field-full">
-        <span className="field-label">图片 <span className="label-muted">· 以 Base64 保存在本机</span></span>
+        <span className="field-label">图片 <span className="label-muted">· 保存到数据库 pic 文件夹</span></span>
         <input ref={imageInput} hidden type="file" accept="image/*" multiple onChange={(event) => addImages(event.target.files)} />
         <div className="image-upload-grid">
           {draft.images.map((image, index) => (
@@ -122,8 +129,9 @@ export function EventForm({
               <button type="button" onClick={() => patch({ images: draft.images.filter((_, itemIndex) => itemIndex !== index) })} aria-label="删除图片"><Trash2 size={15} /></button>
             </div>
           ))}
-          <button className="image-upload-button" type="button" onClick={() => imageInput.current?.click()}>
-            <ImagePlus size={22} /><span>添加图片</span>
+          <button className="image-upload-button" type="button" disabled={uploading} onClick={() => imageInput.current?.click()}>
+            {uploading ? <LoaderCircle size={22} className="spin" /> : <ImagePlus size={22} />}
+            <span>{uploading ? '正在保存' : '添加图片'}</span>
           </button>
         </div>
       </div>
