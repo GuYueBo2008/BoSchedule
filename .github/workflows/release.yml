@@ -19,6 +19,11 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Read version
+        id: version
+        shell: bash
+        run: echo "value=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Install dependencies
         run: npm ci
 
@@ -34,19 +39,8 @@ jobs:
           body: |
             ## 波日程 ${{ github.ref_name }}
 
-            本版本修复 Windows 桌面版启动时报 `startServer` 导出错误的问题，并将 Windows 打包方式由便携版改为安装包。
-
             ### 下载
 
-            - **Windows**：`BoSchedule-Setup-<version>.exe`（x64 安装包，支持自定义安装目录并创建桌面与开始菜单快捷方式）
-
-            ### 修复内容
-
-            - **启动报错**：`server.mjs` 现在导出 `startServer`，主进程可以正常启动内置静态与同步服务，不再出现 `does not provide an export named 'startServer'`。
-            - **Windows 打包**：由 `portable` 改为 `nsis` 安装包，产物命名为 `BoSchedule-Setup-<version>.exe`。
-
-            ### 说明
-
-            - EXE 未做代码签名，首次运行可能出现 SmartScreen 提示，选择「仍要运行」即可。
-            - 安装包与本版本号对应，此前发布的便携版仍可在旧版本页面下载。
+            - **Windows**：`BoSchedule-Setup-${{ steps.version.outputs.value }}.exe`（x64 安装包，支持自定义安装目录，并创建桌面与开始菜单快捷方式）
+          generate_release_notes: true
           files: build/windows/BoSchedule-Setup-*.exe
