@@ -1,6 +1,6 @@
 # 波日程 · BoSchedule
 
-一款遵循 Material You 设计语言的多平台日程 / 课程表应用，面向大学生与需要管理周期性日程的用户。同一套代码可运行在桌面浏览器、手机浏览器与 PWA 中，并内置局域网同步服务。
+一款遵循瑞士网格设计语言的多平台日程 / 课程表应用，面向大学生与需要管理周期性日程的用户。桌面端使用 Tauri 2，网页与 PWA 共用同一套 React 代码，并内置局域网同步服务。
 
 - 版本：1.0.2
 - 作者：古月波
@@ -39,7 +39,7 @@
 
 - 分享为 Excel（`.xlsx`）或整页图片（`.png`）
 - 分享时可选择多个周次与特定标签
-- 提供白色、黑色、iOS、PS 四套主题，随时切换
+- 提供纸白、炭黑、钴蓝、夜蓝四套主题，随时切换
 
 ## 技术栈
 
@@ -50,13 +50,14 @@
 | 表格导出 | xlsx |
 | 图片导出 | html-to-image |
 | 本地存储 | localStorage |
-| 局域网同步 | Node.js 原生 `http` 服务（`sync-server.mjs`） |
+| 桌面端 | Tauri 2（系统 WebView2 / WKWebView / WebKitGTK） |
+| 局域网同步 | 桌面端 Rust + axum；网页版 Node.js 原生 `http`（`sync-server.mjs`） |
 | 离线能力 | Web App Manifest + Service Worker |
-| 样式 | 原生 CSS，CSS 变量驱动的多主题 |
+| 样式 | 原生 CSS，瑞士网格设计系统与 CSS 变量主题 |
 
 ## 快速开始
 
-环境要求：Node.js 20.19+ 或 22.12+。
+环境要求：Node.js 20.19+ 或 22.12+；桌面端构建还需 Rust 工具链。
 
 ```bash
 npm install
@@ -64,11 +65,17 @@ npm install
 # 开发模式，支持局域网访问
 npm run dev        # http://localhost:5173
 
+# Tauri 桌面开发
+npm run dev:desktop
+
 # 生产构建
 npm run build
 
 # 启动生产服务（静态资源 + 局域网同步 API）
 npm start          # http://localhost:4173
+
+# 打包 Windows 安装包（NSIS）
+npm run pack:win
 ```
 
 `npm run build` 会先执行 TypeScript 类型检查，再将产物输出到 `dist/`。
@@ -96,6 +103,7 @@ npm start          # http://localhost:4173
 │   ├── utils.ts          # 周次计算、格式化、下载等工具函数
 │   └── styles.css        # 全局样式与主题变量
 ├── public/               # 图标、Manifest、Service Worker
+├── src-tauri/            # Tauri 2 桌面壳、Rust 同步服务与 NSIS 打包配置
 ├── server.mjs            # 生产静态服务与同步 API 入口
 ├── sync-server.mjs       # 局域网同步接口、配对码与数据合并
 └── vite.config.ts        # 开发服务器与同步中间件
@@ -112,10 +120,10 @@ npm start          # http://localhost:4173
 
 应用通过 `data-theme` 切换主题，提供：
 
-- `light`：白色 Material You 主题（默认）
-- `dark`：黑色主题
-- `ios`：iOS 风格
-- `ps`：PS 风格
+- `light`：纸白主题（默认）
+- `dark`：炭黑主题
+- `ios`：钴蓝主题
+- `ps`：夜蓝主题
 
 ## 关于
 

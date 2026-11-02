@@ -10,9 +10,8 @@ import { SettingsModal } from './components/SettingsModal';
 
 const STORAGE_KEY = 'boschedule-data-v1';
 const CONNECTION_KEY = 'boschedule-sync-connection-v1';
-const TAG_COLORS = ['#39745c', '#496e9f', '#b37731', '#806695', '#a15e68', '#39757b'];
+const TAG_COLORS = ['#3f5a3a', '#2f4f7a', '#8a5b12', '#5c4d70', '#8f4444', '#2f5f60'];
 const PAGE_ORDER: PageKey[] = ['schedule', 'import', 'data'];
-const IS_WINDOWS_ELECTRON = /Windows/i.test(navigator.userAgent) && /Electron/i.test(navigator.userAgent);
 
 interface SyncConnection { hostAddress: string; clientId: string }
 interface SyncResponse { data: Partial<AppData>; devices: SyncDevice[] }
@@ -100,7 +99,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = data.settings.theme;
-    const colors = { light: '#f7f9f5', dark: '#151915', ios: '#f2f5f9', ps: '#101721' };
+    const colors = { light: '#f2f2ef', dark: '#121212', ios: '#f1f2f4', ps: '#0c1015' };
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', colors[data.settings.theme]);
   }, [data.settings.theme]);
 
@@ -348,10 +347,9 @@ export default function App() {
   }
 
   return (
-    <div className={`app-shell${IS_WINDOWS_ELECTRON ? ' windows-electron' : ''}`}>
-      {IS_WINDOWS_ELECTRON && <div className="window-drag-region"><span>波日程</span><small>BO SCHEDULE</small></div>}
+    <div className="app-shell">
       <aside className="nav-rail">
-        <button className="brand" onClick={() => navigatePage('schedule')} aria-label="波日程首页"><span className="brand-mark"><CalendarCheck size={25} /></span><strong>波日程</strong><small>BO SCHEDULE</small></button>
+        <button className="brand" onClick={() => navigatePage('schedule')} aria-label="波日程首页"><span className="brand-mark"><CalendarCheck size={24} /></span><strong>波日程</strong></button>
         <nav className="rail-nav" aria-label="主导航">{navigation.map((item) => <button key={item.id} className={page === item.id ? 'is-active' : ''} onClick={() => navigatePage(item.id)}><span><item.icon size={22} /></span><small>{item.label}</small></button>)}</nav>
         <div className="rail-bottom"><div className="local-status"><i /><span>本地已保存</span></div><button className={`rail-settings ${settingsOpen ? 'is-active' : ''}`} onClick={() => setSettingsOpen(true)}><Settings size={21} /><small>设置</small></button></div>
       </aside>

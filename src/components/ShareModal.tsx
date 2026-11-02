@@ -195,14 +195,14 @@ export function ShareModal({
         </div>
         <div className="share-preview">
           <div className="share-preview-paper">
-            <span className="preview-kicker">BO SCHEDULE</span>
+            <span className="preview-kicker">波日程</span>
             <h3>{timetable.name}</h3>
             <p>{weeks.length ? `第 ${weeks.join('、')} 周` : '选择需要分享的周数'}</p>
             <div className="preview-grid">
               {DAY_NAMES.map((day) => <span key={day}>{day.slice(1)}</span>)}
               {Array.from({ length: 28 }, (_, index) => <i key={index} className={[1, 4, 8, 11, 15, 18, 24].includes(index) ? `filled fill-${index % 4}` : ''} />)}
             </div>
-            <div className="preview-caption">波日程 · 把时间留给重要的事</div>
+            <div className="preview-caption">波日程 · 时间表</div>
           </div>
         </div>
       </div>

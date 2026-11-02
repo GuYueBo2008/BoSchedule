@@ -112,7 +112,7 @@ export function DataPage({
   return (
     <div className="page data-page">
       <header className="page-heading">
-        <div><div className="eyebrow"><span /> YOUR DATA, YOUR RULES</div><h1>数据与同步</h1><p>本地优先、自由迁移，在你的设备之间保持一致。</p></div>
+        <div><h1>数据与同步</h1><p>本地保存，可导出迁移，也可在局域网内同步。</p></div>
         <div className="heading-actions"><button className="button button-tonal" onClick={() => setImportOpen(true)}><Upload size={18} /> 导入</button><button className="button button-primary" onClick={() => setExportOpen(true)}><Download size={18} /> 导出日程</button></div>
       </header>
 
@@ -125,7 +125,7 @@ export function DataPage({
 
       <div className="data-content-grid">
         <section className="surface history-card">
-          <div className="data-section-heading"><div><h2>编辑历史</h2><p>每一次修改，都有迹可循。</p></div><span className="soft-badge"><History size={14} /> 最近 {Math.min(history.length, 8)} 条</span></div>
+          <div className="data-section-heading"><div><h2>编辑历史</h2><p>新建、修改、删除与同步记录。</p></div><span className="soft-badge"><History size={14} /> 最近 {Math.min(history.length, 8)} 条</span></div>
           <div className="history-list">
             {history.slice(0, 8).map((item) => (
               <div className="history-item" key={item.id}><span className={`history-action action-${item.action}`}>{item.action}</span><div><strong>{item.summary}</strong><small>{formatDateTime(item.timestamp)}</small></div></div>
@@ -139,7 +139,7 @@ export function DataPage({
             <div className="data-section-heading"><div><h2>时间表</h2><p>切换或管理你的时间视图。</p></div><button className="text-button" onClick={() => setManageOpen(true)}>管理 <ChevronRight size={15} /></button></div>
             <div className="data-timetable-list">{timetables.map((table) => <button key={table.id} className={table.id === activeTimetableId ? 'is-active' : ''} onClick={() => onSelectTimetable(table.id)}><span className="timetable-icon"><Layers3 size={18} /></span><span><strong>{table.name}</strong><small>{events.filter((event) => event.timetableId === table.id).length} 项日程</small></span>{table.id === activeTimetableId ? <span className="active-check"><Check size={14} /> 当前</span> : <ChevronRight size={16} />}</button>)}</div>
           </section>
-          <section className="backup-card"><span><ShieldCheck size={24} /></span><div><strong>本地数据已妥善保存</strong><p>{storageSize} KB · 包含图片与编辑历史</p></div><button onClick={() => setExportOpen(true)}>立即备份</button></section>
+          <section className="backup-card"><span><ShieldCheck size={24} /></span><div><strong>数据已保存在本机</strong><p>{storageSize} KB · 包含图片与编辑历史</p></div><button onClick={() => setExportOpen(true)}>导出备份</button></section>
         </div>
       </div>
 

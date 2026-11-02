@@ -9,7 +9,7 @@ import { emptyEventDraft, EventForm, type EventDraft } from '../components/Event
 import { Field, Modal } from '../components/ui';
 
 const AI_COLORS: EventColor[] = ['sage', 'blue', 'lavender', 'amber', 'cyan', 'rose'];
-const TAG_COLORS = ['#39745c', '#496e9f', '#b37731', '#806695', '#a15e68', '#39757b'];
+const TAG_COLORS = ['#3f5a3a', '#2f4f7a', '#8a5b12', '#5c4d70', '#8f4444', '#2f5f60'];
 
 function normalizeTime(value: unknown, fallback: string) {
   const match = String(value || '').match(/(\d{1,2})[:：](\d{2})/);
@@ -189,7 +189,7 @@ export function ImportPage({
   return (
     <div className="page import-page">
       <header className="page-heading">
-        <div><div className="eyebrow"><span /> QUICK CAPTURE</div><h1>日程导入</h1><p>手动记录，或让 AI 从一段文字、一张课表中提取安排。</p></div>
+        <div><h1>日程导入</h1><p>手动添加，或从文字、课表图片中提取日程。</p></div>
         <div className="segmented page-tabs">
           <button className={mode === 'manual' ? 'is-active' : ''} onClick={() => setMode('manual')}><Plus size={17} /> 手动添加</button>
           <button className={mode === 'ai' ? 'is-active' : ''} onClick={() => setMode('ai')}><WandSparkles size={17} /> AI 智能提取</button>
@@ -200,13 +200,13 @@ export function ImportPage({
         <div className="import-main">
           {mode === 'manual' ? (
             <section className="surface form-card">
-              <div className="section-card-header"><span className="section-icon"><Plus size={21} /></span><div><h2>添加一个新日程</h2><p>课程、会议、活动，都按你的节奏安排。</p></div></div>
+              <div className="section-card-header"><span className="section-icon"><Plus size={21} /></span><div><h2>添加日程</h2><p>填写名称、时间与重复规则。</p></div></div>
               <EventForm draft={draft} onChange={setDraft} timetables={timetables} tags={tags} />
               <div className="form-footer"><span>保存至 <strong>{timetables.find((table) => table.id === draft.timetableId)?.name}</strong></span><button className="button button-primary" onClick={saveManual}>添加日程 <ArrowRight size={17} /></button></div>
             </section>
           ) : (
             <section className="surface ai-card">
-              <div className="section-card-header"><span className="section-icon ai-icon"><Sparkles size={21} /></span><div><h2>把课表交给 AI</h2><p>DeepSeek 会提取名称、时间、地点、详情和标签。</p></div><span className="beta-badge">BETA</span></div>
+              <div className="section-card-header"><span className="section-icon ai-icon"><Sparkles size={21} /></span><div><h2>从文字或图片提取</h2><p>识别名称、时间、地点与标签，确认后写入。</p></div></div>
               <div className="ai-settings-row">
                 <Field label="DeepSeek API Key" hint="密钥仅保存在当前设备">
                   <div className="key-input"><KeyRound size={17} /><input type={showKey ? 'text' : 'password'} value={apiKey} onChange={(event) => onApiKeyChange(event.target.value)} placeholder="sk-••••••••••••••••" autoComplete="off" /><button onClick={() => setShowKey(!showKey)} aria-label={showKey ? '隐藏密钥' : '显示密钥'}>{showKey ? <EyeOff size={17} /> : <Eye size={17} />}</button></div>
@@ -266,9 +266,8 @@ export function ImportPage({
                 return <div className="tag-row" key={tag.id}><span className="tag-color" style={{ background: tag.color }} /><strong>{tag.name}</strong><span className="tag-count">{count} 项</span><button onClick={() => { setDeleteTag(tag); setTransferTo(tags.find((item) => item.name !== tag.name)?.name || ''); }} aria-label={`删除${tag.name}`}><Trash2 size={15} /></button></div>;
               })}
             </div>
-            <p className="tag-tip">删除正在使用的标签时，可以将相关日程安全转移到其他标签。</p>
+            <p className="tag-tip">删除标签前，可把相关日程转移到其他标签。</p>
           </section>
-          <section className="tip-card"><span><Sparkles size={18} /></span><div><strong>小提示</strong><p>“1-8 周单周”这样的大学课程规则，波日程也能准确保存。</p></div></section>
         </aside>
       </div>
 

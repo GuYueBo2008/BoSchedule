@@ -1,12 +1,12 @@
 import type { EventColor, ScheduleEvent } from './types';
 
 export const EVENT_COLORS: Record<EventColor, { bg: string; accent: string; label: string }> = {
-  sage: { bg: '#dcefe3', accent: '#39745c', label: '鼠尾草绿' },
-  blue: { bg: '#dfe9f8', accent: '#496e9f', label: '晴空蓝' },
-  amber: { bg: '#f8e8ca', accent: '#95692c', label: '暖杏黄' },
-  lavender: { bg: '#ebe3f5', accent: '#78618f', label: '薰衣草紫' },
-  rose: { bg: '#f6e0e2', accent: '#a15e68', label: '玫瑰粉' },
-  cyan: { bg: '#d9edef', accent: '#39757b', label: '海盐青' },
+  sage: { bg: '#e4e7df', accent: '#3f5a3a', label: '橄榄绿' },
+  blue: { bg: '#e1e6ed', accent: '#2f4f7a', label: '钢青蓝' },
+  amber: { bg: '#eee6d3', accent: '#8a5b12', label: '赭石黄' },
+  lavender: { bg: '#e7e3ea', accent: '#5c4d70', label: '灰紫' },
+  rose: { bg: '#eee1e0', accent: '#8f4444', label: '砖红' },
+  cyan: { bg: '#e0e7e6', accent: '#2f5f60', label: '青灰' },
 };
 
 export const DAY_NAMES = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
