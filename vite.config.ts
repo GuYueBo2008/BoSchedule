@@ -13,4 +13,17 @@ export default defineConfig({
     },
   ],
   server: { host: '0.0.0.0', port: 5173 },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split lucide-react icons into their own chunk — it pulls ~700+ icon
+          // components that are only referenced from the main bundle.
+          icons: ['lucide-react'],
+          // html-to-image is a PDF/image renderer used only for share-to-PNG.
+          'html-to-image': ['html-to-image'],
+        },
+      },
+    },
+  },
 });

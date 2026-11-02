@@ -1,5 +1,13 @@
 include ':app'
-include ':capacitor-cordova-android-plugins'
-project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
+
+// Only include cordova plugins subproject when actual plugins exist.
+// This avoids pulling the org.apache.cordova:framework (~10MB) when unused.
+def cordovaPluginsDir = new File('./capacitor-cordova-android-plugins/')
+def hasCordovaPlugins = new File(cordovaPluginsDir, 'src/main/java').exists() ||
+    (new File(cordovaPluginsDir, 'src/main/libs').listFiles({ it.name.endsWith('.jar') })?.length ?: 0) > 0
+if (cordovaPluginsDir.exists() && hasCordovaPlugins) {
+    include ':capacitor-cordova-android-plugins'
+    project(':capacitor-cordova-android-plugins').projectDir = cordovaPluginsDir
+}
 
 apply from: 'capacitor.settings.gradle'

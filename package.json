@@ -14,7 +14,7 @@
     "dev:desktop": "tauri dev",
     "pack:web": "npm run build && rm -rf build/web && mkdir -p build && cp -r dist build/web",
     "pack:win": "tauri build --bundles nsis",
-    "pack:android": "npm run build && cap sync android && mkdir -p build/android && cd android && ./gradlew assembleDebug && cp app/build/outputs/apk/debug/app-debug.apk ../build/android/BoSchedule-Android-${npm_package_version}.apk"
+    "pack:android": "npm run build && cap sync android && mkdir -p build/android && cd android && ./gradlew assembleRelease && cp app/build/outputs/apk/release/app-release.apk ../build/android/BoSchedule-Android-${npm_package_version}-arm64-v8a.apk"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
