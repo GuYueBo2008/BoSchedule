@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createSyncApiHandler } from './sync-server.mjs';
+import { createSyncApiHandler, startDiscoveryResponder } from './sync-server.mjs';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.join(root, 'dist');
@@ -42,12 +42,16 @@ export function createServer() {
 export function startServer(port = 0, host = '0.0.0.0') {
   const server = createServer();
   return new Promise((resolve, reject) => {
+    let discovery = null;
     const onError = (error) => {
       server.removeListener('listening', onListening);
       reject(error);
     };
     const onListening = () => {
       server.removeListener('error', onError);
+      const address = server.address();
+      discovery = startDiscoveryResponder(typeof address === 'object' && address ? address.port : Number(port));
+      server.once('close', () => discovery?.close());
       resolve(server);
     };
     server.once('error', onError);

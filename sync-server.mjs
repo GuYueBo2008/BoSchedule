@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+import dgram from 'node:dgram';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -6,12 +8,15 @@ const dataDirectory = process.env.BOSCHEDULE_DATA_DIR || path.join(os.homedir(),
 const dataFile = path.join(dataDirectory, 'lan-sync.json');
 const MAX_BODY_SIZE = 40 * 1024 * 1024;
 
+export const DISCOVERY_PORT = 41730;
+const SERVICE_NAME = 'BoSchedule';
+
 function loadStore() {
   try {
     const stored = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
-    return { pairCode: stored.pairCode || String(Math.floor(100000 + Math.random() * 900000)), data: stored.data || null, devices: stored.devices || [] };
+    return { serverId: stored.serverId || `server_${crypto.randomUUID()}`, pairCode: stored.pairCode || String(Math.floor(100000 + Math.random() * 900000)), data: stored.data || null, devices: stored.devices || [] };
   } catch {
-    return { pairCode: String(Math.floor(100000 + Math.random() * 900000)), data: null, devices: [] };
+    return { serverId: `server_${crypto.randomUUID()}`, pairCode: String(Math.floor(100000 + Math.random() * 900000)), data: null, devices: [] };
   }
 }
 
@@ -121,6 +126,32 @@ function publicDevices() {
   return store.devices.map(({ clientId, ...device }) => device);
 }
 
+export function startDiscoveryResponder(port) {
+  const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+  const close = () => {
+    try { socket.close(); } catch { /* 已关闭 */ }
+  };
+  socket.on('error', close);
+  socket.on('message', (message, remote) => {
+    let probe;
+    try { probe = JSON.parse(message.toString('utf8')); } catch { return; }
+    if (!probe || probe.service !== SERVICE_NAME) return;
+    const payload = Buffer.from(JSON.stringify({
+      service: SERVICE_NAME,
+      type: 'service',
+      protocol: 1,
+      id: store.serverId,
+      name: os.hostname(),
+      platform: localPlatform(),
+      port,
+      addresses: localNetworkAddresses(),
+    }));
+    socket.send(payload, remote.port, remote.address, () => undefined);
+  });
+  socket.bind(DISCOVERY_PORT);
+  return { close };
+}
+
 export function createSyncApiHandler() {
   return async (request, response, next) => {
     const url = new URL(request.url || '/', 'http://localhost');
@@ -132,8 +163,10 @@ export function createSyncApiHandler() {
     try {
       if (request.method === 'GET' && url.pathname === '/api/sync/info') {
         return send(response, 200, {
-          service: 'BoSchedule',
+          service: SERVICE_NAME,
           version: 1,
+          protocol: 1,
+          id: store.serverId,
           name: os.hostname(),
           platform: localPlatform(),
           port: request.socket.localPort || null,

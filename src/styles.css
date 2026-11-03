@@ -506,6 +506,46 @@ input[type='number'] { font-variant-numeric: tabular-nums; }
 .pair-form { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 .pair-form .field-full { grid-column: 1 / -1; }
 
+.sync-local-code { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 12px 0 4px; padding: 10px 14px; border-radius: 12px; background: var(--primary-softer); color: var(--muted); font-size: 11px; }
+.sync-local-code strong { color: var(--primary); font-size: 16px; letter-spacing: 3px; font-variant-numeric: tabular-nums; }
+.sync-local-code small { flex: 1; min-width: 150px; color: var(--faint); }
+.sync-local-code .text-button { margin-left: auto; white-space: nowrap; }
+
+.scan-local-code { display: flex; flex-direction: column; align-items: center; margin-bottom: 18px; padding: 18px; border-radius: 16px; background: var(--primary-soft); }
+.scan-local-code .pair-code-value { margin: 6px 0; color: var(--primary); }
+.scan-local-code small { color: var(--muted); font-size: 11px; text-align: center; line-height: 1.6; }
+.scan-local-hint { display: flex; align-items: flex-start; gap: 9px; margin-bottom: 18px; padding: 12px 13px; border-radius: 13px; background: var(--surface-soft); color: var(--muted); font-size: 11px; line-height: 1.7; }
+.scan-local-hint > svg { flex: none; margin-top: 1px; color: var(--primary); }
+.scan-panel { overflow: hidden; border: 1px solid var(--outline); border-radius: 16px; }
+.scan-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; background: var(--surface-soft); }
+.scan-heading strong { display: block; font-size: 12px; }
+.scan-heading small { display: block; margin-top: 3px; color: var(--faint); font-size: 11px; }
+.scan-heading .text-button { flex: none; }
+.scan-progress { display: flex; align-items: center; gap: 12px; padding: 20px 15px; color: var(--primary); }
+.scan-progress > svg { flex: none; }
+.scan-progress strong { display: block; color: var(--text); font-size: 12px; font-variant-numeric: tabular-nums; }
+.scan-progress small { display: block; margin-top: 4px; color: var(--faint); font-size: 11px; }
+.scan-device-list { display: grid; gap: 1px; max-height: 250px; overflow: auto; background: var(--outline); }
+.scan-device { display: flex; align-items: center; gap: 11px; width: 100%; padding: 11px 14px; border: 0; background: var(--surface); text-align: left; transition: background .18s; }
+.scan-device:hover, .scan-device.is-selected { background: var(--primary-softer); }
+.scan-device > svg:last-child { flex: none; color: var(--muted); }
+.scan-device.is-selected > svg:last-child { color: var(--primary); }
+.scan-device .device-icon { width: 38px; height: 38px; border-radius: 12px; }
+.scan-device-info { flex: 1; min-width: 0; }
+.scan-device-info strong { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+.scan-device-info em { padding: 2px 6px; border-radius: 6px; background: var(--surface-soft); color: var(--muted); font-size: 10px; font-style: normal; font-weight: 500; }
+.scan-device-info small { display: block; margin-top: 4px; color: var(--faint); font-size: 11px; }
+.scan-empty { padding: 26px 18px; color: var(--faint); text-align: center; font-size: 11px; line-height: 1.8; }
+.scan-target { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--outline); }
+.scan-target-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.scan-target-heading span { font-size: 12px; font-weight: 700; }
+.scan-target-heading small { color: var(--faint); font-size: 11px; }
+.scan-connect { width: 100%; margin-top: 12px; }
+.scan-manual { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--outline); }
+.scan-manual-toggle { width: 100%; padding: 4px; border: 0; background: transparent; color: var(--faint); font-size: 11px; }
+.scan-manual-toggle:hover { color: var(--primary); }
+.manual-pair { margin-top: 10px; }
+
 .transfer-form-grid { display: grid; grid-template-columns: .8fr 1.2fr; gap: 18px; }
 .export-selection { margin-top: 20px; }
 .selection-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; color: var(--muted); font-size: 12px; }
