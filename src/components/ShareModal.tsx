@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FileSpreadsheet, Image as ImageIcon, LoaderCircle, Share2 } from 'lucide-react';
+import { AlertTriangle, FileSpreadsheet, Image as ImageIcon, LoaderCircle, Share2 } from 'lucide-react';
 import type { ScheduleEvent, ScheduleTag, Timetable } from '../types';
 import { DAY_NAMES, downloadDataUrl, eventOccursInWeek, formatMonthDay, getWeekDates, parseWeekSelection } from '../utils';
 import { Field, Modal, TagPicker } from './ui';
@@ -32,6 +32,7 @@ async function assertImageHasContent(dataUrl: string) {
   for (let index = 0; index < pixels.length; index += 4) {
     if (pixels[index + 3] > 0) colors.add((pixels[index] >> 4) * 256 + (pixels[index + 1] >> 4) * 16 + (pixels[index + 2] >> 4));
   }
+  if (!image.width || !image.height) throw new Error('生成的图片尺寸异常，请重试');
   if (colors.size < 4) throw new Error('生成的图片为空，请重试');
 }
 
@@ -58,10 +59,14 @@ export function ShareModal({
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [format, setFormat] = useState<'xlsx' | 'png'>('xlsx');
   const [busy, setBusy] = useState(false);
+  const [exportError, setExportError] = useState('');
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (open) setWeeksText(String(currentWeek));
+    if (open) {
+      setWeeksText(String(currentWeek));
+      setExportError('');
+    }
   }, [open, currentWeek]);
 
   const weeks = useMemo(() => parseWeekSelection(weeksText), [weeksText]);
@@ -97,6 +102,7 @@ export function ShareModal({
       return;
     }
     setBusy(true);
+    setExportError('');
     try {
       if (format === 'xlsx') {
         const XLSX = await import('xlsx-js-style');
@@ -143,7 +149,7 @@ export function ShareModal({
           backgroundColor: '#f4f7f2',
           pixelRatio: 2,
           cacheBust: true,
-          style: { left: '0px', top: '0px' },
+          style: { left: '0px', top: '0px', opacity: '1' },
         });
         await assertImageHasContent(dataUrl);
         downloadDataUrl(dataUrl, `${timetable.name}-日程分享.png`);
@@ -153,7 +159,9 @@ export function ShareModal({
       notify(`已导出 ${format === 'xlsx' ? 'Excel 日程表' : '整页日程图片'}`);
       onClose();
     } catch (error) {
-      notify(error instanceof Error ? `导出失败：${error.message}` : '导出失败，请重试');
+      const message = error instanceof Error ? error.message : '请重试';
+      setExportError(message);
+      notify(`导出失败：${message}`);
     } finally {
       setBusy(false);
     }
@@ -186,6 +194,7 @@ export function ShareModal({
           <div className="share-summary">
             <Share2 size={18} /><span>将分享 <strong>{weeks.length}</strong> 周，共 <strong>{total}</strong> 项日程</span>
           </div>
+          {exportError && <div className="share-error" role="alert"><AlertTriangle size={16} /><span>{exportError}</span></div>}
           <div className="modal-actions">
             <button className="button button-plain" onClick={onClose}>取消</button>
             <button className="button button-primary" onClick={exportSchedule} disabled={busy || !weeks.length}>
