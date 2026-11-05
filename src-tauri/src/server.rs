@@ -69,7 +69,7 @@ struct SyncBody {
 
 #[derive(Deserialize)]
 struct RemoveDeviceBody {
-    #[serde(rename = "clientId")]
+    #[serde(rename = "clientId", default)]
     client_id: String,
     #[serde(rename = "deviceId")]
     device_id: String,
