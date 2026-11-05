@@ -4,12 +4,19 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要上传 APK 的已有 Release tag（例如 v1.0.3）'
+        required: true
+        type: string
 
 permissions:
   contents: write
 
 jobs:
   windows:
+    if: github.event_name == 'push'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,6 +61,7 @@ jobs:
 
   android:
     needs: windows
+    if: always() && (github.event_name == 'push' || inputs.tag != '')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -69,6 +77,8 @@ jobs:
           java-version: 21
 
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Install Android SDK packages
         run: |
@@ -89,6 +99,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload "${{ github.ref_name }}" \
+          gh release upload "${{ inputs.tag || github.ref_name }}" \
             "build/android/BoSchedule-Android-${{ steps.version.outputs.value }}.apk" \
             --clobber
