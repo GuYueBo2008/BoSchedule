@@ -1,44 +1,20 @@
 {
   "name": "boschedule",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "简洁、灵活的多平台日程与课程表应用",
   "author": "古月波",
   "type": "module",
-  "main": "electron/main.mjs",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "start": "node server.mjs",
+    "tauri": "tauri",
+    "dev:desktop": "tauri dev",
     "pack:web": "npm run build && rm -rf build/web && mkdir -p build && cp -r dist build/web",
-    "pack:win": "npm run build && electron-builder --win nsis --x64 --publish never",
+    "pack:win": "tauri build --bundles nsis",
     "pack:android": "npm run build && cap sync android && mkdir -p build/android && cd android && ./gradlew assembleDebug && cp app/build/outputs/apk/debug/app-debug.apk ../build/android/BoSchedule-Android-${npm_package_version}.apk"
-  },
-  "build": {
-    "appId": "com.guyuebo.boschedule",
-    "productName": "波日程",
-    "executableName": "BoSchedule",
-    "artifactName": "BoSchedule-Setup-${version}.${ext}",
-    "directories": {
-      "output": "build/windows"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "波日程"
-    },
-    "files": [
-      "dist/**/*",
-      "electron/**/*",
-      "server.mjs",
-      "sync-server.mjs",
-      "package.json",
-      "!node_modules/**/*"
-    ]
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
@@ -51,12 +27,10 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.3",
+    "@tauri-apps/cli": "^2.12.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.5.2",
-    "electron": "^45.1.0",
-    "electron-builder": "^26.18.0",
-    "sharp": "^0.35.5",
     "typescript": "~5.8.3",
     "vite": "^7.0.0"
   }

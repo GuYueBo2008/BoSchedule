@@ -1,4 +1,4 @@
-name: Release Windows installer
+name: Release desktop and Android
 
 on:
   push:
@@ -19,6 +19,14 @@ jobs:
           node-version: 22
           cache: npm
 
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
       - name: Read version
         id: version
         shell: bash
@@ -27,10 +35,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build NSIS installer
+      - name: Build Tauri installer
         run: npm run pack:win
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -41,6 +47,48 @@ jobs:
 
             ### 下载
 
-            - **Windows**：`BoSchedule-Setup-${{ steps.version.outputs.value }}.exe`（x64 安装包，支持自定义安装目录，并创建桌面与开始菜单快捷方式）
+            - **Windows**：`波日程_${{ steps.version.outputs.value }}_x64-setup.exe`（x64 安装包，使用系统 WebView2）
+            - **Android**：`BoSchedule-Android-${{ steps.version.outputs.value }}.apk`（Debug 签名，可直接安装）
           generate_release_notes: true
-          files: build/windows/BoSchedule-Setup-*.exe
+          files: src-tauri/target/release/bundle/nsis/*.exe
+
+  android:
+    needs: windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Read version
+        id: version
+        run: echo "value=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Android APK
+        run: npm run pack:android
+
+      - name: Upload APK to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.ref_name }}" \
+            "build/android/BoSchedule-Android-${{ steps.version.outputs.value }}.apk" \
+            --clobber
