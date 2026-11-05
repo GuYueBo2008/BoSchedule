@@ -1,7 +1,7 @@
 {
   "name": "boschedule",
   "private": true,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "简洁、灵活的多平台日程与课程表应用",
   "author": "古月波",
   "type": "module",

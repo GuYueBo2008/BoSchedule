@@ -203,13 +203,17 @@ export function createSyncApiHandler() {
         saveStore();
         return send(response, 200, { ok: true, data: store.data, devices: publicDevices() });
       }
+      if (request.method === 'GET' && url.pathname === '/api/sync/local-devices') {
+        if (!isLocalRequest(request)) return send(response, 403, { error: '仅限本机访问' });
+        return send(response, 200, { devices: publicDevices() });
+      }
       if (request.method === 'GET' && url.pathname === '/api/sync/devices') {
         if (!authorizedDevice(url.searchParams.get('clientId'))) return send(response, 403, { error: '设备尚未配对' });
         return send(response, 200, { devices: publicDevices(), data: store.data });
       }
       if (request.method === 'POST' && url.pathname === '/api/sync/remove-device') {
         const body = await readBody(request);
-        if (!authorizedDevice(body.clientId)) return send(response, 403, { error: '设备尚未配对' });
+        if (!authorizedDevice(body.clientId) && !isLocalRequest(request)) return send(response, 403, { error: '设备尚未配对' });
         store.devices = store.devices.filter((device) => device.id !== body.deviceId);
         saveStore();
         return send(response, 200, { ok: true, devices: publicDevices() });

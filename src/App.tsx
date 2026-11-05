@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { CalendarCheck, CalendarPlus, CalendarRange, Check, Database, Settings } from 'lucide-react';
 import { createInitialData } from './data';
 import type { AppData, AppSettings, PageKey, ScheduleEvent, ScheduleTag, SyncDevice, SyncInfo, Timetable } from './types';
@@ -102,6 +103,10 @@ export default function App() {
     document.documentElement.dataset.theme = data.settings.theme;
     const colors = { light: '#f7f9f5', dark: '#151915', ios: '#f2f5f9', ps: '#101721' };
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', colors[data.settings.theme]);
+    if (Capacitor.isNativePlatform()) {
+      const darkTheme = data.settings.theme === 'dark' || data.settings.theme === 'ps';
+      void SystemBars.setStyle({ style: darkTheme ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => undefined);
+    }
   }, [data.settings.theme]);
 
   useEffect(() => {
@@ -148,6 +153,22 @@ export default function App() {
     });
   }, []);
 
+  const refreshLocalDevices = useCallback(async () => {
+    if (connectionRef.current) return;
+    try {
+      const response = await fetch('/api/sync/local-devices', { cache: 'no-store', signal: AbortSignal.timeout(5000) });
+      if (!response.ok) return;
+      const result = await response.json() as { devices?: SyncDevice[] };
+      if (!Array.isArray(result.devices)) return;
+      setData((previous) => {
+        if (JSON.stringify(previous.devices) === JSON.stringify(result.devices)) return previous;
+        return { ...previous, devices: result.devices! };
+      });
+    } catch {
+      /* 当前设备不是同步主机时忽略 */
+    }
+  }, []);
+
   const performSync = useCallback(async () => {
     const current = connectionRef.current;
     if (!current) throw new Error('尚未连接局域网同步主机');
@@ -186,6 +207,20 @@ export default function App() {
     const timer = window.setTimeout(startAutoSync, 900);
     return () => window.clearTimeout(timer);
   }, [data.events, data.settings.autoSync, connection, startAutoSync]);
+
+  useEffect(() => {
+    if (page !== 'data' || connection || !localSyncInfo.pairCode) return;
+    void refreshLocalDevices();
+    const timer = window.setInterval(() => void refreshLocalDevices(), 3000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refreshLocalDevices();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [page, connection, localSyncInfo.pairCode, refreshLocalDevices]);
 
   function createEvent(event: ScheduleEvent) {
     setData((previous) => {
@@ -313,9 +348,17 @@ export default function App() {
         localStorage.removeItem(CONNECTION_KEY);
         setConnection(null);
       }
-    } else {
-      setData((previous) => ({ ...previous, devices: previous.devices.filter((device) => device.id !== id) }));
+      return;
     }
+    const response = await fetch('/api/sync/remove-device', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceId: id }),
+      signal: AbortSignal.timeout(12000),
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || `同步服务返回 ${response.status}`);
+    setData((previous) => ({ ...previous, devices: result.devices || previous.devices.filter((device) => device.id !== id) }));
   }
 
   async function syncDevice(id: string) {

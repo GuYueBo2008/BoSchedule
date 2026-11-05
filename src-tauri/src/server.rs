@@ -111,6 +111,7 @@ fn router(state: AppState) -> Router {
         .route("/api/sync/info", get(info))
         .route("/api/sync/pair", post(pair))
         .route("/api/sync/sync", post(sync))
+        .route("/api/sync/local-devices", get(local_devices))
         .route("/api/sync/devices", get(list_devices))
         .route("/api/sync/remove-device", post(remove_device))
         .fallback(serve_static)
@@ -227,6 +228,17 @@ async fn sync(
         .into_response()
 }
 
+async fn local_devices(
+    State(state): State<AppState>,
+    ConnectInfo(address): ConnectInfo<SocketAddr>,
+) -> Response {
+    if !is_local(address.ip()) {
+        return error(StatusCode::FORBIDDEN, "仅限本机访问");
+    }
+    let store = state.store.lock().await;
+    Json(json!({ "devices": public_devices(&store) })).into_response()
+}
+
 async fn list_devices(
     State(state): State<AppState>,
     Query(query): Query<HashMap<String, String>>,
@@ -241,10 +253,11 @@ async fn list_devices(
 
 async fn remove_device(
     State(state): State<AppState>,
+    ConnectInfo(address): ConnectInfo<SocketAddr>,
     Json(body): Json<RemoveDeviceBody>,
 ) -> Response {
     let mut store = state.store.lock().await;
-    if !authorized(&store, &body.client_id) {
+    if !authorized(&store, &body.client_id) && !is_local(address.ip()) {
         return error(StatusCode::FORBIDDEN, "设备尚未配对");
     }
     store

@@ -1,6 +1,6 @@
 [package]
 name = "boschedule"
-version = "1.0.3"
+version = "1.0.4"
 description = "波日程 · BoSchedule"
 authors = ["古月波"]
 edition = "2021"
