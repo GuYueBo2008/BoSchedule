@@ -9,8 +9,8 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SystemBars: {
-      initialViewportFitValueHint: 'cover',
-      insetsHandling: 'css',
+      // 安全区改由 SafeArea 原生插件读取后交给网页处理，关闭内置注入避免重复处理。
+      insetsHandling: 'disable',
     },
   },
 };
