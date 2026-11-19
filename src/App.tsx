@@ -6,6 +6,7 @@ import { createId } from './utils';
 import { SchedulePage } from './pages/SchedulePage';
 import { ImportPage } from './pages/ImportPage';
 import { DataPage } from './pages/DataPage';
+import { QrSyncClientPage } from './pages/QrSyncClientPage';
 import { ImportModal } from './components/DataTransfer';
 import { SettingsModal } from './components/SettingsModal';
 
@@ -14,6 +15,12 @@ const CONNECTION_KEY = 'boschedule-sync-connection-v1';
 const TAG_COLORS = ['#39745c', '#496e9f', '#b37731', '#806695', '#a15e68', '#39757b'];
 const PAGE_ORDER: PageKey[] = ['schedule', 'import', 'data'];
 const IS_WINDOWS_ELECTRON = /Windows/i.test(navigator.userAgent) && /Electron/i.test(navigator.userAgent);
+
+function qrSyncTokenFromLocation(): string | null {
+  if (!/\/qr-sync\/?$/.test(window.location.pathname)) return null;
+  const token = new URLSearchParams(window.location.search).get('t');
+  return token && token.startsWith('qrs_') ? token : null;
+}
 
 interface SyncConnection { hostAddress: string; clientId: string }
 interface SyncResponse { data: Partial<AppData>; devices: SyncDevice[] }
@@ -356,6 +363,22 @@ export default function App() {
     }
   }
 
+  function applyQrMerged(merged: Partial<AppData>) {
+    setData((previous) => {
+      const timetables = merged.timetables?.length ? merged.timetables : previous.timetables;
+      return {
+        ...previous,
+        timetables,
+        events: merged.events ?? previous.events,
+        tags: merged.tags ?? previous.tags,
+        history: merged.history ?? previous.history,
+        eventTombstones: merged.eventTombstones ?? previous.eventTombstones,
+        activeTimetableId: timetables.some((table) => table.id === previous.activeTimetableId) ? previous.activeTimetableId : timetables[0]?.id || previous.activeTimetableId,
+      };
+    });
+    notify('扫码同步完成，已按最后编辑时间合并');
+  }
+
   const sharedTableProps = {
     timetables: data.timetables,
     onSelectTimetable: (activeTimetableId: string) => setData((previous) => ({ ...previous, activeTimetableId })),
@@ -375,6 +398,9 @@ export default function App() {
     setPage(nextPage);
   }
 
+  const qrSyncToken = qrSyncTokenFromLocation();
+  if (qrSyncToken) return <QrSyncClientPage token={qrSyncToken} />;
+
   return (
     <div className={`app-shell${IS_WINDOWS_ELECTRON ? ' windows-electron' : ''}`}>
       {IS_WINDOWS_ELECTRON && <div className="window-drag-region"><span>波日程</span><small>BO SCHEDULE</small></div>}
@@ -389,7 +415,7 @@ export default function App() {
       <main className={`app-main page-slide-${slideDirection}`} key={page}>
         {page === 'schedule' && <SchedulePage timetable={activeTimetable} events={data.events} tags={data.tags} nickname={data.settings.nickname || ''} onNicknameChange={(nickname) => updateSettings({ nickname })} {...sharedTableProps} onUpdateEvent={updateEvent} onDeleteEvent={deleteEvent} onNavigateImport={() => navigatePage('import')} notify={notify} onExported={recordExport} />}
         {page === 'import' && <ImportPage timetables={data.timetables} activeTimetableId={activeTimetable.id} events={data.events} tags={data.tags} apiKey={data.settings.apiKey} onApiKeyChange={(apiKey) => updateSettings({ apiKey })} onCreateEvent={createEvent} onImportEvents={importEvents} onAddTag={addTag} onEnsureTags={ensureTags} onDeleteTag={deleteTag} notify={notify} />}
-        {page === 'data' && <DataPage {...sharedTableProps} activeTimetableId={activeTimetable.id} events={data.events} tags={data.tags} history={data.history} devices={data.devices} settings={data.settings} localSyncInfo={localSyncInfo} onSettingsChange={updateSettings} onPairDevice={pairDevice} onDeleteDevice={removeDevice} onSyncDevice={syncDevice} onImport={resolveImport} onImportFriendTable={importFriendTable} onExported={recordExport} notify={notify} />}
+        {page === 'data' && <DataPage {...sharedTableProps} activeTimetableId={activeTimetable.id} events={data.events} tags={data.tags} history={data.history} eventTombstones={data.eventTombstones} devices={data.devices} settings={data.settings} localSyncInfo={localSyncInfo} onSettingsChange={updateSettings} onPairDevice={pairDevice} onDeleteDevice={removeDevice} onSyncDevice={syncDevice} onQrSyncApply={applyQrMerged} onImport={resolveImport} onImportFriendTable={importFriendTable} onExported={recordExport} notify={notify} />}
       </main>
 
       <nav className="bottom-nav" aria-label="移动端主导航">{navigation.map((item) => <button key={item.id} className={page === item.id ? 'is-active' : ''} onClick={() => navigatePage(item.id)}><span><item.icon size={21} /></span><small>{item.label}</small></button>)}</nav>

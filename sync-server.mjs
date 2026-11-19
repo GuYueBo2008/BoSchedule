@@ -187,3 +187,82 @@ export function createSyncApiHandler() {
     }
   };
 }
+
+const QR_SESSION_TTL = 10 * 60 * 1000;
+let qrSession = null;
+
+function sessionSummary(data) {
+  const stamps = [...(data.events || []), ...(data.timetables || [])].map((item) => Date.parse(item.updatedAt || item.timestamp || 0) || 0);
+  const latest = stamps.length ? Math.max(...stamps) : 0;
+  return {
+    timetables: (data.timetables || []).length,
+    events: (data.events || []).length,
+    updatedAt: latest ? new Date(latest).toISOString() : null,
+  };
+}
+
+function qrSessionValid() {
+  if (!qrSession) return null;
+  if (Date.now() - Date.parse(qrSession.startedAt) > QR_SESSION_TTL) {
+    qrSession = null;
+    return null;
+  }
+  return qrSession;
+}
+
+// 手机扫电脑二维码后的局域网直连同步：一次会话只允许一台手机应用一次数据。
+export function createQrSyncApiHandler() {
+  return async (request, response) => {
+    const url = new URL(request.url || '/', 'http://localhost');
+    if (!url.pathname.startsWith('/api/qr-sync')) return false;
+    if (request.method === 'OPTIONS') return send(response, 204, {});
+    try {
+      if (request.method === 'POST' && url.pathname === '/api/qr-sync/start') {
+        if (!isLocalRequest(request)) return send(response, 403, { error: '仅限本机发起扫码同步' });
+        const body = await readBody(request);
+        qrSession = {
+          token: `qrs_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
+          hostData: sharedData(body.data),
+          merged: null,
+          status: 'waiting',
+          clientName: null,
+          startedAt: new Date().toISOString(),
+        };
+        return send(response, 200, {
+          token: qrSession.token,
+          port: request.socket.localPort || null,
+          addresses: localNetworkAddresses(),
+          name: os.hostname(),
+          summary: sessionSummary(qrSession.hostData),
+        });
+      }
+      const session = qrSessionValid();
+      const token = url.searchParams.get('t');
+      if (!session || token !== session.token) return send(response, 410, { error: '二维码已过期，请在电脑端重新生成' });
+      if (request.method === 'GET' && url.pathname === '/api/qr-sync/session') {
+        return send(response, 200, { status: session.status, summary: sessionSummary(session.hostData), hostName: os.hostname(), expiresAt: session.startedAt });
+      }
+      if (request.method === 'POST' && url.pathname === '/api/qr-sync/apply') {
+        const body = await readBody(request);
+        if (session.status === 'done') return send(response, 409, { error: '该二维码已被使用，请在电脑端重新生成' });
+        session.clientName = String(body.clientName || '移动设备').slice(0, 40);
+        session.status = 'done';
+        session.completedAt = new Date().toISOString();
+        session.merged = mergeData(session.hostData, body.data);
+        return send(response, 200, { ok: true, data: session.merged, summary: sessionSummary(session.merged) });
+      }
+      if (request.method === 'GET' && url.pathname === '/api/qr-sync/result') {
+        if (!isLocalRequest(request)) return send(response, 403, { error: '仅限本机查询结果' });
+        return send(response, 200, { status: session.status, clientName: session.clientName, data: session.merged, completedAt: session.completedAt || null });
+      }
+      if (request.method === 'POST' && url.pathname === '/api/qr-sync/close') {
+        if (!isLocalRequest(request)) return send(response, 403, { error: '仅限本机关闭会话' });
+        qrSession = null;
+        return send(response, 200, { ok: true });
+      }
+      return send(response, 404, { error: '扫码同步接口不存在' });
+    } catch (error) {
+      return send(response, 500, { error: error instanceof Error ? error.message : '扫码同步服务异常' });
+    }
+  };
+}

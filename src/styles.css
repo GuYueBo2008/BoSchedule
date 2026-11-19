@@ -512,6 +512,43 @@ input[type='number'] { font-variant-numeric: tabular-nums; }
 .paired-badge i { width: 5px; height: 5px; border-radius: 50%; background: #62a47b; }
 .device-row .button { min-height: 40px; padding: 0 14px; font-size: 11px; }
 .add-device-button { display: flex; align-items: center; gap: 5px; margin: 13px auto 0; border: 0; background: transparent; color: var(--primary); font-size: 12px; font-weight: 700; }
+.qr-sync-entry { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 15px; padding: 13px 15px; border: 1px solid var(--outline); border-radius: 13px; background: var(--surface-soft); text-align: left; transition: border-color .18s, background .18s; }
+.qr-sync-entry:hover { border-color: color-mix(in srgb, var(--primary) 45%, var(--outline)); background: var(--primary-soft); }
+.qr-sync-entry > div { flex: 1; display: grid; gap: 2px; }
+.qr-sync-entry strong { font-size: 13px; }
+.qr-sync-entry small { color: var(--muted); font-size: 11.5px; }
+.qr-sync-entry svg:last-child { color: var(--faint); }
+.qr-entry-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 11px; background: var(--primary-soft); color: var(--primary); }
+.qr-sync-body { display: grid; justify-items: center; gap: 13px; padding: 4px 0 2px; }
+.qr-image-wrap { padding: 11px; border-radius: 16px; background: #fff; box-shadow: inset 0 0 0 1px var(--outline), 0 10px 24px rgba(25, 40, 30, .08); }
+.qr-image-wrap img { display: block; width: 216px; height: 216px; }
+.qr-hint { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.qr-steps { display: grid; gap: 5px; align-self: stretch; padding: 11px 13px; border-radius: 11px; background: var(--surface-soft); color: var(--muted); font-size: 11.5px; }
+.qr-steps b { display: inline-grid; place-items: center; width: 16px; height: 16px; margin-right: 7px; border-radius: 50%; background: var(--primary-soft); color: var(--primary); font-size: 10px; }
+.qr-url-fallback { align-self: stretch; color: var(--muted); font-size: 11.5px; }
+.qr-url-fallback summary { cursor: pointer; }
+.qr-url-fallback code { display: block; margin-top: 6px; padding: 8px 10px; border-radius: 8px; background: var(--surface-soft); word-break: break-all; }
+.qr-waiting { display: inline-flex; align-items: center; gap: 7px; color: var(--primary); font-size: 12px; font-weight: 650; }
+.qr-state { display: grid; justify-items: center; gap: 9px; padding: 26px 8px; color: var(--muted); font-size: 12.5px; text-align: center; }
+.qr-state.is-done { color: var(--primary); }
+.qr-state.is-done strong { font-size: 16px; }
+.qr-state.is-done small { color: var(--muted); }
+.qr-client-page { min-height: 100vh; display: grid; place-items: center; padding: 20px; background: var(--bg); }
+.qr-client-card { width: min(430px, 100%); display: grid; gap: 15px; padding: 22px; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 18px 46px rgba(25, 40, 30, .12); }
+.qr-client-head { display: flex; align-items: center; gap: 12px; }
+.qr-client-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 13px; background: var(--primary-soft); color: var(--primary); }
+.qr-client-head h1 { font-size: 19px; font-weight: 750; letter-spacing: -.3px; }
+.qr-client-head p { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.qr-summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.qr-summary-card { display: grid; gap: 8px; padding: 13px; border-radius: 12px; border: 1px solid var(--outline); background: var(--surface-soft); }
+.qr-summary-card.is-highlight { border-color: color-mix(in srgb, var(--primary) 40%, var(--outline)); }
+.qr-summary-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.qr-summary-head b { color: var(--text); font-size: 11.5px; }
+.qr-summary-nums { display: grid; gap: 5px; font-size: 12.5px; font-weight: 650; }
+.qr-summary-nums span { display: inline-flex; align-items: center; gap: 6px; }
+.qr-summary-card small { color: var(--faint); font-size: 10.5px; }
+.qr-apply-button { justify-content: center; }
+.qr-client-note { color: var(--faint); font-size: 11px; line-height: 1.6; }
 .empty-state { display: flex; flex-direction: column; align-items: center; padding: 32px 15px 22px; text-align: center; }
 .empty-icon { width: 57px; height: 57px; display: grid; place-items: center; margin-bottom: 13px; border-radius: 19px; background: var(--surface-soft); color: var(--primary); }
 .empty-state h3 { margin: 0; font-size: 13px; }

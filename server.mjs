@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createSyncApiHandler } from './sync-server.mjs';
+import { createSyncApiHandler, createQrSyncApiHandler } from './sync-server.mjs';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.join(root, 'dist');
@@ -14,10 +14,15 @@ const mimeTypes = {
 
 export function createServer() {
   const syncApi = createSyncApiHandler();
+  const qrSyncApi = createQrSyncApiHandler();
 
   return http.createServer(async (request, response) => {
     if (request.url?.startsWith('/api/sync')) {
       await syncApi(request, response);
+      return;
+    }
+    if (request.url?.startsWith('/api/qr-sync')) {
+      await qrSyncApi(request, response);
       return;
     }
     const url = new URL(request.url || '/', 'http://localhost');

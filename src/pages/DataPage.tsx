@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
 import {
   CalendarCheck, Check, ChevronRight, Download, History,
-  Laptop, Layers3, LoaderCircle, MonitorSmartphone, Plus, RefreshCw, ShieldCheck,
+  Laptop, Layers3, LoaderCircle, MonitorSmartphone, Plus, RefreshCw, ScanLine, ShieldCheck,
   Smartphone, Trash2, Upload, Wifi,
 } from 'lucide-react';
-import type { AppSettings, HistoryItem, ScheduleEvent, ScheduleTag, SyncDevice, SyncInfo, Timetable } from '../types';
+import type { AppData, AppSettings, HistoryItem, ScheduleEvent, ScheduleTag, SyncDevice, SyncInfo, Timetable } from '../types';
 import { formatDateTime } from '../utils';
 import { EmptyState, Field, Modal, Toggle } from '../components/ui';
 import { ExportModal, ImportModal } from '../components/DataTransfer';
+import { QrSyncModal } from '../components/QrSyncModal';
 import { TimetableManager } from '../components/TimetableManager';
 
 export function DataPage({
@@ -16,6 +17,7 @@ export function DataPage({
   events,
   tags,
   history,
+  eventTombstones,
   devices,
   settings,
   localSyncInfo,
@@ -26,6 +28,7 @@ export function DataPage({
   onPairDevice,
   onDeleteDevice,
   onSyncDevice,
+  onQrSyncApply,
   onImport,
   onImportFriendTable,
   onExported,
@@ -36,6 +39,7 @@ export function DataPage({
   events: ScheduleEvent[];
   tags: ScheduleTag[];
   history: HistoryItem[];
+  eventTombstones: Record<string, string>;
   devices: SyncDevice[];
   settings: AppSettings;
   localSyncInfo: SyncInfo;
@@ -46,6 +50,7 @@ export function DataPage({
   onPairDevice: (address: string, code: string) => Promise<void>;
   onDeleteDevice: (id: string) => Promise<void>;
   onSyncDevice: (id: string) => Promise<void>;
+  onQrSyncApply: (merged: Partial<AppData>) => void;
   onImport: (events: ScheduleEvent[], newTags: ScheduleTag[]) => void;
   onImportFriendTable: (payload: { name: string; termStart: string; owner: string; events: ScheduleEvent[]; newTags: ScheduleTag[] }) => void;
   onExported: (summary: string) => void;
@@ -55,6 +60,7 @@ export function DataPage({
   const [importOpen, setImportOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [pairOpen, setPairOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [deleteDeviceId, setDeleteDeviceId] = useState<string | null>(null);
   const [pairIp, setPairIp] = useState('');
@@ -150,6 +156,11 @@ export function DataPage({
           <div className="sync-title"><span className="section-icon"><Wifi size={21} /></span><div><h2>局域网同步</h2><p>同一 Wi-Fi 下配对，手机与电脑都可以发起同步。</p></div></div>
           <div className="auto-sync-toggle"><span><strong>自动同步</strong><small>启动与日程修改后</small></span><Toggle checked={settings.autoSync} onChange={(autoSync) => onSettingsChange({ autoSync })} label="自动同步" /></div>
         </div>
+        <button className="qr-sync-entry" onClick={() => setQrOpen(true)}>
+          <span className="qr-entry-icon"><ScanLine size={21} /></span>
+          <div><strong>手机扫码同步</strong><small>电脑出示二维码，手机扫码即建立连接并合并日程</small></div>
+          <ChevronRight size={17} />
+        </button>
         <div className="sync-policy"><ShieldCheck size={15} /><span>冲突时自动采用<strong>最后编辑时间</strong>较新的版本</span><div><span>失败重试：每</span><input type="number" min={5} value={settings.retryInterval} onChange={(event) => onSettingsChange({ retryInterval: Math.max(5, Number(event.target.value)) })} aria-label="重试间隔秒数" /><span>秒，共</span><input type="number" min={1} value={settings.retryCount} onChange={(event) => onSettingsChange({ retryCount: Math.max(1, Number(event.target.value)) })} aria-label="重试次数" /><span>次</span></div></div>
         {devices.length ? (
           <div className="device-list">{devices.map((device) => <div className="device-row" key={device.id}><span className="device-icon">{device.platform === 'Android' ? <Smartphone size={22} /> : <Laptop size={22} />}</span><div className="device-info"><strong>{device.name}<span>{device.platform}</span></strong><small>{device.address} · 上次同步 {formatDateTime(device.lastSync)}</small></div><span className="paired-badge"><i /> 已配对</span><button className="button button-tonal" disabled={syncingId === device.id} onClick={() => sync(device.id)}>{syncingId === device.id ? <LoaderCircle size={16} className="spin" /> : <RefreshCw size={16} />} {syncingId === device.id ? '同步中' : '立即同步'}</button>{deleteDeviceId === device.id ? <button className="text-danger" onClick={() => { void removeDevice(device.id); }}>确认移除</button> : <button className="icon-button subtle-danger" onClick={() => setDeleteDeviceId(device.id)} aria-label={`移除${device.name}`}><Trash2 size={17} /></button>}</div>)}</div>
@@ -161,6 +172,7 @@ export function DataPage({
 
       <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} timetables={timetables} activeTimetableId={activeTimetableId} events={events} tags={tags} onExported={onExported} notify={notify} />
       <ImportModal open={importOpen} onClose={() => setImportOpen(false)} timetables={timetables} activeTimetableId={activeTimetableId} events={events} tags={tags} onImport={onImport} onImportFriendTable={onImportFriendTable} notify={notify} />
+      <QrSyncModal open={qrOpen} onClose={() => setQrOpen(false)} data={{ timetables, events, tags, history, eventTombstones } as AppData} onApply={onQrSyncApply} />
       <TimetableManager open={manageOpen} onClose={() => setManageOpen(false)} timetables={timetables} events={events} activeId={activeTimetableId} onSelect={onSelectTimetable} onCreate={onCreateTimetable} onDelete={onDeleteTimetable} />
       <Modal open={pairOpen} onClose={() => !pairBusy && setPairOpen(false)} title="配对新设备" subtitle="本机平台与配对码自动识别，输入目标设备的 IP、端口和配对码即可。" size="small">
         <div className="local-pair-code">
