@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock3, Edit3, FileText,
-  MapPin, Plus, Repeat2, Share2, Trash2, X,
+  MapPin, Plus, Repeat2, Share2, Trash2, Users, X,
 } from 'lucide-react';
 import type { EventColor, ScheduleEvent, ScheduleTag, Timetable } from '../types';
 import {
@@ -19,11 +19,19 @@ const END_HOUR = 22;
 const HOUR_HEIGHT = 70;
 const HOURS = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, index) => START_HOUR + index);
 
+interface EventRow {
+  event: ScheduleEvent;
+  owner?: string;
+  overlaps: boolean;
+}
+
 export function SchedulePage({
   timetable,
   timetables,
   events,
   tags,
+  nickname,
+  onNicknameChange,
   onSelectTimetable,
   onCreateTimetable,
   onDeleteTimetable,
@@ -37,6 +45,8 @@ export function SchedulePage({
   timetables: Timetable[];
   events: ScheduleEvent[];
   tags: ScheduleTag[];
+  nickname: string;
+  onNicknameChange: (name: string) => void;
   onSelectTimetable: (id: string) => void;
   onCreateTimetable: (name: string, termStart: string) => void;
   onDeleteTimetable: (id: string) => void;
@@ -50,6 +60,7 @@ export function SchedulePage({
   const [selectedDay, setSelectedDay] = useState(() => (new Date().getDay() + 6) % 7);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [filterTag, setFilterTag] = useState('all');
+  const [mixMode, setMixMode] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [editing, setEditing] = useState<ScheduleEvent | null>(null);
@@ -67,9 +78,31 @@ export function SchedulePage({
   const timetableEvents = useMemo(() => events.filter((event) => event.timetableId === timetable.id), [events, timetable.id]);
   const weekEvents = useMemo(() => timetableEvents.filter((event) => eventOccursInWeek(event, currentWeek)), [timetableEvents, currentWeek]);
   const visibleEvents = useMemo(() => weekEvents.filter((event) => filterTag === 'all' || event.tags.includes(filterTag)), [weekEvents, filterTag]);
+  const friendTables = useMemo(() => timetables.filter((table) => table.owner), [timetables]);
+  const friendGroups = useMemo(() => friendTables.map((table) => ({
+    table,
+    events: mixMode
+      ? events.filter((event) => event.timetableId === table.id && eventOccursInWeek(event, currentWeek) && (filterTag === 'all' || event.tags.includes(filterTag)))
+      : [],
+  })), [friendTables, mixMode, events, currentWeek, filterTag]);
+  const ownerByEventId = useMemo(() => {
+    const map: Record<string, string> = {};
+    friendGroups.forEach(({ table, events: list }) => list.forEach((event) => { map[event.id] = table.owner!; }));
+    return map;
+  }, [friendGroups]);
+  const mixTotal = friendGroups.reduce((count, { events: list }) => count + list.length, 0);
   const selectedEvent = events.find((event) => event.id === selectedEventId) || null;
+  const selectedOwner = selectedEvent ? timetables.find((table) => table.id === selectedEvent.timetableId)?.owner || null : null;
   const realCurrentWeek = getCurrentWeek(timetable.termStart);
   const todayIndex = (new Date().getDay() + 6) % 7;
+
+  function eventsForDay(dayIndex: number): EventRow[] {
+    const mine = visibleEvents.filter((event) => event.day === dayIndex);
+    const friends = mixMode ? friendGroups.flatMap(({ events: list }) => list.filter((event) => event.day === dayIndex)) : [];
+    const friendItems: EventRow[] = friends.map((event) => ({ event, owner: ownerByEventId[event.id], overlaps: mine.some((item) => item.start < event.end && event.start < item.end) }));
+    const mineItems: EventRow[] = mine.map((event) => ({ event, owner: undefined, overlaps: false }));
+    return [...friendItems, ...mineItems];
+  }
 
   function openEditor(event: ScheduleEvent) {
     const { id, createdAt, updatedAt, ...draft } = event;
@@ -97,9 +130,8 @@ export function SchedulePage({
     <div className="page schedule-page">
       <header className="page-heading">
         <div>
-          <div className="eyebrow"><span /> MY SCHEDULE</div>
-          <h1>我的时间表</h1>
-          <p>本周 {weekEvents.length} 项安排，把时间留给重要的事。</p>
+          <h1>时间表</h1>
+          <p>{mixMode ? <>本周共 {visibleEvents.length + mixTotal} 项日程，含好友的 {mixTotal} 项</> : <>本周 {weekEvents.length} 项日程</>}</p>
         </div>
         <div className="heading-actions">
           <button className="button button-tonal" onClick={() => setShareOpen(true)}><Share2 size={18} /> 分享</button>
@@ -126,6 +158,11 @@ export function SchedulePage({
               <option value="all">全部日程</option>
               {tags.map((tag) => <option value={tag.name} key={tag.id}>{tag.name}</option>)}
             </select>
+            {friendTables.length > 0 && (
+              <button className={`mix-toggle ${mixMode ? 'is-active' : ''}`} onClick={() => setMixMode((value) => !value)} aria-pressed={mixMode} title="叠加显示好友的课表">
+                <Users size={16} /> {mixMode ? '混合中' : '混合'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -152,18 +189,19 @@ export function SchedulePage({
                 {DAY_NAMES.map((day, dayIndex) => (
                   <div className={`day-column ${currentWeek === realCurrentWeek && dayIndex === todayIndex ? 'is-today' : ''}`} key={day} style={{ height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}>
                     {HOURS.slice(0, -1).map((hour) => <div className="hour-line" key={hour} style={{ height: HOUR_HEIGHT }} />)}
-                    {visibleEvents.filter((event) => event.day === dayIndex).map((event) => {
+                    {eventsForDay(dayIndex).map(({ event, owner, overlaps }) => {
                       const top = Math.max(0, (timeToMinutes(event.start) - START_HOUR * 60) / 60 * HOUR_HEIGHT);
                       const height = Math.max(48, (timeToMinutes(event.end) - timeToMinutes(event.start)) / 60 * HOUR_HEIGHT - 5);
                       const color = EVENT_COLORS[event.color];
                       return (
                         <button
                           key={event.id}
-                          className="week-event"
+                          className={`week-event ${owner ? 'is-friend' : ''} ${overlaps ? 'is-offset' : ''}`}
                           style={{ top, height, '--event-bg': color.bg, '--event-accent': color.accent } as React.CSSProperties}
                           onClick={() => setSelectedEventId(event.id)}
                         >
                           <span className="event-accent" />
+                          {owner && <span className="event-owner">{owner}</span>}
                           <span className="week-event-time">{event.start}–{event.end}</span>
                           <strong>{event.title}</strong>
                           {height > 72 && <small><MapPin size={11} />{event.location || '未设置地点'}</small>}
@@ -176,8 +214,8 @@ export function SchedulePage({
             </div>
           </div>
           <div className="schedule-legend">
-            <span><i className="legend-dot" />{visibleEvents.length} 项日程</span>
-            <span>点击日程查看详情</span>
+            <span><i className="legend-dot" />{mixMode ? visibleEvents.length + mixTotal : visibleEvents.length} 项日程</span>
+            {mixMode && friendGroups.filter(({ events: list }) => list.length > 0).map(({ table }) => <em className="legend-friend" key={table.id}>{table.owner}</em>)}
           </div>
         </div>
 
@@ -190,18 +228,18 @@ export function SchedulePage({
             ))}
           </div>
           <div className="mobile-agenda">
-            <div className="mobile-agenda-title"><strong>{DAY_NAMES[selectedDay]}</strong><span>{formatMonthDay(dates[selectedDay])} · {visibleEvents.filter((event) => event.day === selectedDay).length} 项安排</span></div>
-            {visibleEvents.filter((event) => event.day === selectedDay).sort((a, b) => a.start.localeCompare(b.start)).map((event) => {
+            <div className="mobile-agenda-title"><strong>{DAY_NAMES[selectedDay]}</strong><span>{formatMonthDay(dates[selectedDay])} · {eventsForDay(selectedDay).length} 项日程</span></div>
+            {eventsForDay(selectedDay).sort((a, b) => a.event.start.localeCompare(b.event.start)).map(({ event, owner }) => {
               const color = EVENT_COLORS[event.color];
               return (
-                <button className="mobile-event" key={event.id} onClick={() => setSelectedEventId(event.id)} style={{ '--event-bg': color.bg, '--event-accent': color.accent } as React.CSSProperties}>
+                <button className={`mobile-event ${owner ? 'is-friend' : ''}`} key={event.id} onClick={() => setSelectedEventId(event.id)} style={{ '--event-bg': color.bg, '--event-accent': color.accent } as React.CSSProperties}>
                   <span className="mobile-event-time"><strong>{event.start}</strong><small>{event.end}</small></span>
-                  <span className="mobile-event-card"><strong>{event.title}</strong><small><MapPin size={12} />{event.location || '未设置地点'}</small><span>{event.tags.join(' · ')}</span></span>
+                  <span className="mobile-event-card">{owner && <span className="event-owner">{owner}</span>}<strong>{event.title}</strong><small><MapPin size={12} />{event.location || '未设置地点'}</small><span>{event.tags.join(' · ')}</span></span>
                 </button>
               );
             })}
-            {!visibleEvents.some((event) => event.day === selectedDay) && (
-              <div className="mobile-empty"><CalendarDays size={28} /><strong>这一天，留一点空白</strong><span>没有符合筛选条件的日程</span></div>
+            {eventsForDay(selectedDay).length === 0 && (
+              <div className="mobile-empty"><CalendarDays size={28} /><strong>当天没有日程</strong><span>调整筛选或周次查看其他安排</span></div>
             )}
           </div>
         </div>
@@ -212,7 +250,7 @@ export function SchedulePage({
           <aside className="event-detail" aria-label="日程详情">
             <div className="detail-color-band" style={{ background: EVENT_COLORS[selectedEvent.color].bg }} />
             <header className="detail-header">
-              <span className="detail-kicker">日程详情</span>
+              <span className="detail-kicker">{selectedOwner ? <><Users size={14} /> 来自好友 · {selectedOwner}</> : '日程详情'}</span>
               <button className="icon-button" onClick={() => setSelectedEventId(null)} aria-label="关闭详情"><X size={20} /></button>
             </header>
             <div className="detail-body">
@@ -225,7 +263,7 @@ export function SchedulePage({
               </div>
               <div className="detail-section"><h3>详细说明</h3><p className={!selectedEvent.detail ? 'muted' : ''}>{selectedEvent.detail || '还没有添加详细说明。'}</p></div>
               {selectedEvent.images.length > 0 && <div className="detail-section"><h3>图片</h3><div className="detail-images">{selectedEvent.images.map((image, index) => <img src={image} alt={`日程附件 ${index + 1}`} key={index} />)}</div></div>}
-              <div className="detail-section"><h3>日程颜色</h3><ColorPicker value={selectedEvent.color} onChange={(color: EventColor) => onUpdateEvent({ ...selectedEvent, color, updatedAt: new Date().toISOString() })} /></div>
+              {!selectedOwner && <div className="detail-section"><h3>日程颜色</h3><ColorPicker value={selectedEvent.color} onChange={(color: EventColor) => onUpdateEvent({ ...selectedEvent, color, updatedAt: new Date().toISOString() })} /></div>}
               {selectedEvent.source?.content && (
                 <details className="source-details">
                   <summary><FileText size={16} /> 查看原始来源</summary>
@@ -234,7 +272,9 @@ export function SchedulePage({
               )}
             </div>
             <footer className="detail-footer">
-              {deleteArmed ? (
+              {selectedOwner ? (
+                <div className="friend-readonly"><Users size={16} /> 好友分享的日程，仅供查看</div>
+              ) : deleteArmed ? (
                 <div className="delete-confirm"><span>确认删除这个日程？</span><button onClick={() => setDeleteArmed(false)}>取消</button><button className="danger" onClick={() => { onDeleteEvent(selectedEvent.id); setSelectedEventId(null); notify('日程已删除'); }}>删除</button></div>
               ) : (
                 <><button className="button button-plain subtle-danger" onClick={() => setDeleteArmed(true)}><Trash2 size={17} /> 删除</button><button className="button button-primary" onClick={() => openEditor(selectedEvent)}><Edit3 size={17} /> 编辑日程</button></>
@@ -250,7 +290,7 @@ export function SchedulePage({
       </Modal>
 
       <TimetableManager open={manageOpen} onClose={() => setManageOpen(false)} timetables={timetables} events={events} activeId={timetable.id} onSelect={onSelectTimetable} onCreate={onCreateTimetable} onDelete={onDeleteTimetable} />
-      <ShareModal open={shareOpen} onClose={() => setShareOpen(false)} timetable={timetable} events={events} tags={tags} currentWeek={currentWeek} notify={notify} onExported={onExported} />
+      <ShareModal open={shareOpen} onClose={() => setShareOpen(false)} timetable={timetable} events={events} tags={tags} currentWeek={currentWeek} nickname={nickname} onNicknameChange={onNicknameChange} notify={notify} onExported={onExported} />
     </div>
   );
 }

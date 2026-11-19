@@ -7,6 +7,8 @@ export interface Timetable {
   id: string;
   name: string;
   termStart: string;
+  /** 好友课表：来自谁的分享，普通课表无此字段 */
+  owner?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -70,6 +72,8 @@ export interface AppSettings {
   autoSync: boolean;
   retryInterval: number;
   retryCount: number;
+  /** 好友分享时的署名 */
+  nickname?: string;
 }
 
 export interface AppData {
@@ -88,6 +92,8 @@ export interface ImportBundle {
   app: 'BoSchedule';
   version: number;
   exportedAt: string;
+  /** 好友分享时的署名 */
+  author?: string;
   timetables: Timetable[];
   events: ScheduleEvent[];
   tags: ScheduleTag[];

@@ -293,6 +293,20 @@ export default function App() {
     });
   }
 
+  function importFriendTable({ name, termStart, owner, events: imported, newTags }: { name: string; termStart: string; owner: string; events: ScheduleEvent[]; newTags: ScheduleTag[] }) {
+    const now = new Date().toISOString();
+    const table: Timetable = { id: createId('table'), name, termStart, owner, createdAt: now, updatedAt: now };
+    const friendEvents = imported.map((event) => ({ ...event, timetableId: table.id }));
+    setData((previous) => ({
+      ...previous,
+      timetables: [...previous.timetables, table],
+      events: [...previous.events, ...friendEvents],
+      tags: [...previous.tags, ...newTags.filter((newTag) => !previous.tags.some((tag) => tag.name === newTag.name))],
+      activeTimetableId: table.id,
+      history: [historyItem('导入', `导入好友「${owner}」的课表，共 ${friendEvents.length} 项日程`), ...previous.history],
+    }));
+  }
+
   function recordExport(summary: string, action: HistoryItem['action'] = '导出') {
     setData((previous) => ({ ...previous, history: [historyItem(action, summary), ...previous.history] }));
   }
@@ -373,9 +387,9 @@ export default function App() {
       <header className="mobile-app-bar"><button className="brand" onClick={() => navigatePage('schedule')}><span className="brand-mark"><CalendarCheck size={22} /></span><strong>波日程</strong></button><button className="icon-button" onClick={() => setSettingsOpen(true)} aria-label="设置"><Settings size={21} /></button></header>
 
       <main className={`app-main page-slide-${slideDirection}`} key={page}>
-        {page === 'schedule' && <SchedulePage timetable={activeTimetable} events={data.events} tags={data.tags} {...sharedTableProps} onUpdateEvent={updateEvent} onDeleteEvent={deleteEvent} onNavigateImport={() => navigatePage('import')} notify={notify} onExported={recordExport} />}
+        {page === 'schedule' && <SchedulePage timetable={activeTimetable} events={data.events} tags={data.tags} nickname={data.settings.nickname || ''} onNicknameChange={(nickname) => updateSettings({ nickname })} {...sharedTableProps} onUpdateEvent={updateEvent} onDeleteEvent={deleteEvent} onNavigateImport={() => navigatePage('import')} notify={notify} onExported={recordExport} />}
         {page === 'import' && <ImportPage timetables={data.timetables} activeTimetableId={activeTimetable.id} events={data.events} tags={data.tags} apiKey={data.settings.apiKey} onApiKeyChange={(apiKey) => updateSettings({ apiKey })} onCreateEvent={createEvent} onImportEvents={importEvents} onAddTag={addTag} onEnsureTags={ensureTags} onDeleteTag={deleteTag} notify={notify} />}
-        {page === 'data' && <DataPage {...sharedTableProps} activeTimetableId={activeTimetable.id} events={data.events} tags={data.tags} history={data.history} devices={data.devices} settings={data.settings} localSyncInfo={localSyncInfo} onSettingsChange={updateSettings} onPairDevice={pairDevice} onDeleteDevice={removeDevice} onSyncDevice={syncDevice} onImport={resolveImport} onExported={recordExport} notify={notify} />}
+        {page === 'data' && <DataPage {...sharedTableProps} activeTimetableId={activeTimetable.id} events={data.events} tags={data.tags} history={data.history} devices={data.devices} settings={data.settings} localSyncInfo={localSyncInfo} onSettingsChange={updateSettings} onPairDevice={pairDevice} onDeleteDevice={removeDevice} onSyncDevice={syncDevice} onImport={resolveImport} onImportFriendTable={importFriendTable} onExported={recordExport} notify={notify} />}
       </main>
 
       <nav className="bottom-nav" aria-label="移动端主导航">{navigation.map((item) => <button key={item.id} className={page === item.id ? 'is-active' : ''} onClick={() => navigatePage(item.id)}><span><item.icon size={21} /></span><small>{item.label}</small></button>)}</nav>
@@ -389,6 +403,7 @@ export default function App() {
         events={data.events}
         tags={data.tags}
         onImport={resolveImport}
+        onImportFriendTable={importFriendTable}
         notify={notify}
       />
       {toast && <div className="toast" key={toast.id}><span><Check size={16} /></span>{toast.message}</div>}

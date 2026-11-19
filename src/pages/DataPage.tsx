@@ -27,6 +27,7 @@ export function DataPage({
   onDeleteDevice,
   onSyncDevice,
   onImport,
+  onImportFriendTable,
   onExported,
   notify,
 }: {
@@ -46,6 +47,7 @@ export function DataPage({
   onDeleteDevice: (id: string) => Promise<void>;
   onSyncDevice: (id: string) => Promise<void>;
   onImport: (events: ScheduleEvent[], newTags: ScheduleTag[]) => void;
+  onImportFriendTable: (payload: { name: string; termStart: string; owner: string; events: ScheduleEvent[]; newTags: ScheduleTag[] }) => void;
   onExported: (summary: string) => void;
   notify: (message: string) => void;
 }) {
@@ -112,7 +114,7 @@ export function DataPage({
   return (
     <div className="page data-page">
       <header className="page-heading">
-        <div><div className="eyebrow"><span /> YOUR DATA, YOUR RULES</div><h1>数据与同步</h1><p>本地优先、自由迁移，在你的设备之间保持一致。</p></div>
+        <div><h1>数据与同步</h1><p>管理本地数据与设备同步。</p></div>
         <div className="heading-actions"><button className="button button-tonal" onClick={() => setImportOpen(true)}><Upload size={18} /> 导入</button><button className="button button-primary" onClick={() => setExportOpen(true)}><Download size={18} /> 导出日程</button></div>
       </header>
 
@@ -158,7 +160,7 @@ export function DataPage({
       </section>
 
       <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} timetables={timetables} activeTimetableId={activeTimetableId} events={events} tags={tags} onExported={onExported} notify={notify} />
-      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} timetables={timetables} activeTimetableId={activeTimetableId} events={events} tags={tags} onImport={onImport} notify={notify} />
+      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} timetables={timetables} activeTimetableId={activeTimetableId} events={events} tags={tags} onImport={onImport} onImportFriendTable={onImportFriendTable} notify={notify} />
       <TimetableManager open={manageOpen} onClose={() => setManageOpen(false)} timetables={timetables} events={events} activeId={activeTimetableId} onSelect={onSelectTimetable} onCreate={onCreateTimetable} onDelete={onDeleteTimetable} />
       <Modal open={pairOpen} onClose={() => !pairBusy && setPairOpen(false)} title="配对新设备" subtitle="本机平台与配对码自动识别，输入目标设备的 IP、端口和配对码即可。" size="small">
         <div className="local-pair-code">

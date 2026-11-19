@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, Check, ChevronRight, ClipboardPaste, Download, FileJson, FileUp, FolderInput, LoaderCircle,
+  AlertTriangle, Check, ChevronRight, ClipboardPaste, Download, FileJson, FileUp, FolderInput, Layers, LoaderCircle,
   TextQuote, UploadCloud, Users,
 } from 'lucide-react';
 import type { ImportBundle, ScheduleEvent, ScheduleTag, Timetable } from '../types';
@@ -102,6 +102,7 @@ export function ImportModal({
   events,
   tags,
   onImport,
+  onImportFriendTable,
   notify,
   initialCode,
 }: {
@@ -112,6 +113,7 @@ export function ImportModal({
   events: ScheduleEvent[];
   tags: ScheduleTag[];
   onImport: (events: ScheduleEvent[], newTags: ScheduleTag[]) => void;
+  onImportFriendTable: (payload: { name: string; termStart: string; owner: string; events: ScheduleEvent[]; newTags: ScheduleTag[] }) => void;
   notify: (message: string) => void;
   initialCode?: string;
 }) {
@@ -123,6 +125,7 @@ export function ImportModal({
   const [reading, setReading] = useState(false);
   const [entryMode, setEntryMode] = useState<'file' | 'paste'>('file');
   const [pasteText, setPasteText] = useState('');
+  const [friendTableMode, setFriendTableMode] = useState(true);
 
   useEffect(() => {
     if (open) {
@@ -132,6 +135,7 @@ export function ImportModal({
       setChoices({});
       setEntryMode(initialCode ? 'paste' : 'file');
       setPasteText(initialCode || '');
+      setFriendTableMode(true);
       if (initialCode) void readCode(initialCode);
     }
   }, [open, activeTimetableId, initialCode]);
@@ -155,8 +159,9 @@ export function ImportModal({
     return local ? [{ imported, local }] : [];
   }), [mappedEvents, events, targetId]);
 
-  function applyBundle(parsed: ImportBundle) {
+  function applyBundle(parsed: ImportBundle, fromShare: boolean) {
     setBundle(parsed);
+    setFriendTableMode(fromShare);
     const mappings: Record<string, string> = {};
     const names = [...new Set(parsed.events.flatMap((event) => event.tags || []))];
     names.forEach((name) => { if (!tags.some((tag) => tag.name === name)) mappings[name] = '__create__'; });
@@ -170,7 +175,7 @@ export function ImportModal({
     try {
       const parsed = JSON.parse(await file.text()) as ImportBundle;
       if (parsed.app !== 'BoSchedule' || !Array.isArray(parsed.events)) throw new Error('这不是有效的波日程导出文件');
-      applyBundle(parsed);
+      applyBundle(parsed, false);
     } catch (error) {
       notify(error instanceof Error ? error.message : '文件读取失败');
     } finally {
@@ -186,7 +191,7 @@ export function ImportModal({
     }
     setReading(true);
     try {
-      applyBundle(await decodeShareCode(code));
+      applyBundle(await decodeShareCode(code), true);
     } catch (error) {
       notify(error instanceof Error ? error.message : '分享码解析失败');
     } finally {
@@ -196,11 +201,29 @@ export function ImportModal({
 
   function resolveImport() {
     if (!bundle) return;
+    const now = new Date().toISOString();
+    const newTags = unknownTags.filter((name) => tagMappings[name] === '__create__').map((name, index) => ({
+      id: createId('tag'), name, color: bundle.tags.find((tag) => tag.name === name)?.color || ['#39745c', '#496e9f', '#b37731', '#806695'][index % 4],
+    }));
+    if (friendTableMode) {
+      const source = bundle.timetables?.[0];
+      const fallbackStart = timetables.find((table) => table.id === activeTimetableId)?.termStart || now.slice(0, 10);
+      const imported = mappedEvents.map((event) => ({ ...event, id: createId('event'), createdAt: event.createdAt || now, updatedAt: now }));
+      onImportFriendTable({
+        name: source?.name || '好友课表',
+        termStart: source?.termStart || fallbackStart,
+        owner: bundle.author?.trim() || '好友',
+        events: imported,
+        newTags,
+      });
+      notify(`已导入好友课表，共 ${imported.length} 项日程`);
+      onClose();
+      return;
+    }
     if (conflicts.some(({ imported }) => !choices[imported.id])) {
       notify('请先选择每个冲突日程的处理方式');
       return;
     }
-    const now = new Date().toISOString();
     const resolved: ScheduleEvent[] = [];
     mappedEvents.forEach((imported) => {
       const conflict = conflicts.find(({ imported: item }) => item.id === imported.id);
@@ -212,16 +235,13 @@ export function ImportModal({
         resolved.push({ ...imported, id: idUsedElsewhere ? createId('event') : imported.id, createdAt: imported.createdAt || now, updatedAt: now });
       }
     });
-    const newTags = unknownTags.filter((name) => tagMappings[name] === '__create__').map((name, index) => ({
-      id: createId('tag'), name, color: bundle.tags.find((tag) => tag.name === name)?.color || ['#39745c', '#496e9f', '#b37731', '#806695'][index % 4],
-    }));
     onImport(resolved, newTags);
     notify(`导入完成：写入 ${resolved.length} 项，忽略 ${conflicts.filter(({ imported }) => choices[imported.id] === 'ignore').length} 项冲突`);
     onClose();
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="导入日程" subtitle="选择目标时间表，并妥善处理新标签与时间冲突。" size="large">
+    <Modal open={open} onClose={onClose} title="导入日程" subtitle="粘贴好友分享码或选择文件，选择导入方式。" size="large">
       <input ref={inputRef} hidden type="file" accept=".json,.boschedule,application/json" onChange={(event) => readBundle(event.target.files?.[0])} />
       {!bundle ? (
         <div className="import-entry">
@@ -248,15 +268,28 @@ export function ImportModal({
         </div>
       ) : (
         <div className="import-review">
-          <div className="file-summary"><span><FileJson size={22} /></span><div><strong>已读取 {bundle.events.length} 项日程</strong><small>导出于 {new Date(bundle.exportedAt).toLocaleString('zh-CN')}</small></div><button onClick={() => { setBundle(null); setChoices({}); }}>重新选择</button></div>
-          <Field label="导入到哪个时间表" className="field-full"><select value={targetId} onChange={(event) => { setTargetId(event.target.value); setChoices({}); }}>{timetables.map((table) => <option value={table.id} key={table.id}>{table.name}</option>)}</select></Field>
+          <div className="file-summary"><span><FileJson size={22} /></span><div><strong>已读取 {bundle.events.length} 项日程</strong><small>导出于 {new Date(bundle.exportedAt).toLocaleString('zh-CN')}{bundle.author?.trim() ? ` · 来自 ${bundle.author.trim()}` : ''}</small></div><button onClick={() => { setBundle(null); setChoices({}); }}>重新选择</button></div>
+          <div className="import-mode" role="radiogroup" aria-label="导入方式">
+            <button className={friendTableMode ? 'is-selected' : ''} onClick={() => setFriendTableMode(true)}>
+              <Users size={19} /><span><strong>导入为好友课表</strong><small>新建独立时间表，可与我的课表混合查看</small></span>
+            </button>
+            <button className={!friendTableMode ? 'is-selected' : ''} onClick={() => setFriendTableMode(false)}>
+              <Layers size={19} /><span><strong>并入现有时间表</strong><small>合并进选择的时间表，处理重复日程</small></span>
+            </button>
+          </div>
+          {friendTableMode ? (
+            <div className="friend-table-summary">将新建课表「{bundle.timetables?.[0]?.name || '好友课表'}」{bundle.author?.trim() ? <>，来自 <strong>{bundle.author.trim()}</strong></> : null}，共 <strong>{bundle.events.length}</strong> 项日程</div>
+          ) : (
+            <Field label="导入到哪个时间表" className="field-full"><select value={targetId} onChange={(event) => { setTargetId(event.target.value); setChoices({}); }}>{timetables.map((table) => <option value={table.id} key={table.id}>{table.name}</option>)}</select></Field>
+          )}
           {unknownTags.length > 0 && (
             <section className="resolve-section"><div className="resolve-heading"><span><FolderInput size={18} /></span><div><h3>处理新标签</h3><p>可以创建新标签，或同步为本地已有标签。</p></div></div>{unknownTags.map((name) => <div className="tag-mapping-row" key={name}><span className="incoming-tag">{name}</span><ChevronRight size={16} /><select value={tagMappings[name]} onChange={(event) => setTagMappings({ ...tagMappings, [name]: event.target.value })}><option value="__create__">创建新标签「{name}」</option>{tags.map((tag) => <option value={tag.name} key={tag.id}>同步为「{tag.name}」</option>)}</select></div>)}</section>
           )}
-          {conflicts.length > 0 && (
-            <section className="resolve-section"><div className="resolve-heading conflict"><span><AlertTriangle size={18} /></span><div><h3>发现 {conflicts.length} 项冲突</h3><p>选择覆盖本地日程，或保留本地并忽略导入项。</p></div></div><div className="conflict-bulk"><button onClick={() => setChoices(Object.fromEntries(conflicts.map(({ imported }) => [imported.id, 'overwrite'])))}>全部覆盖</button><button onClick={() => setChoices(Object.fromEntries(conflicts.map(({ imported }) => [imported.id, 'ignore'])))}>全部忽略</button></div>{conflicts.map(({ imported, local }) => <div className="conflict-row" key={imported.id}><div><strong>{imported.title}</strong><small>{DAY_NAMES[imported.day]} · {imported.start}–{imported.end}</small></div><div className="conflict-options"><button className={choices[imported.id] === 'overwrite' ? 'is-selected' : ''} onClick={() => setChoices({ ...choices, [imported.id]: 'overwrite' })}>覆盖本地</button><button className={choices[imported.id] === 'ignore' ? 'is-selected' : ''} onClick={() => setChoices({ ...choices, [imported.id]: 'ignore' })}>忽略导入</button></div></div>)}</section>
-          )}
-          {!unknownTags.length && !conflicts.length && <div className="ready-import"><Check size={18} /> 没有新标签或冲突，可以直接导入。</div>}
+          {!friendTableMode && (conflicts.length > 0 ? (
+            <section className="resolve-section"><div className="resolve-heading conflict"><span><AlertTriangle size={18} /></span><div><h3>发现 {conflicts.length} 项冲突</h3><p>选择覆盖本地日程，或保留本地并忽略导入项。</p></div></div><div className="conflict-bulk"><button onClick={() => setChoices(Object.fromEntries(conflicts.map(({ imported }) => [imported.id, 'overwrite' as ConflictChoice])))}>全部覆盖</button><button onClick={() => setChoices(Object.fromEntries(conflicts.map(({ imported }) => [imported.id, 'ignore' as ConflictChoice])))}>全部忽略</button></div>{conflicts.map(({ imported, local }) => <div className="conflict-row" key={imported.id}><div><strong>{imported.title}</strong><small>{DAY_NAMES[imported.day]} · {imported.start}–{imported.end}</small></div><div className="conflict-options"><button className={choices[imported.id] === 'overwrite' ? 'is-selected' : ''} onClick={() => setChoices({ ...choices, [imported.id]: 'overwrite' })}>覆盖本地</button><button className={choices[imported.id] === 'ignore' ? 'is-selected' : ''} onClick={() => setChoices({ ...choices, [imported.id]: 'ignore' })}>忽略导入</button></div></div>)}</section>
+          ) : (
+            <div className="ready-import"><Check size={18} /> 没有新标签或冲突，可以直接导入。</div>
+          ))}
           <div className="modal-actions"><button className="button button-plain" onClick={onClose}>取消</button><button className="button button-primary" onClick={resolveImport}><FolderInput size={17} /> 确认导入</button></div>
         </div>
       )}

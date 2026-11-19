@@ -42,7 +42,7 @@ export function TimetableManager({
             <div className={`timetable-row ${active ? 'is-active' : ''}`} key={table.id}>
               <button className="timetable-main" onClick={() => { onSelect(table.id); onClose(); }}>
                 <span className="timetable-icon"><CalendarDays size={20} /></span>
-                <span><strong>{table.name}</strong><small>{count} 项日程 · {table.termStart} 开始</small></span>
+                <span><strong>{table.name}{table.owner && <em className="table-owner">来自 {table.owner}</em>}</strong><small>{count} 项日程 · {table.termStart} 开始</small></span>
                 {active && <span className="active-check"><Check size={16} /> 使用中</span>}
               </button>
               {timetables.length > 1 && (
