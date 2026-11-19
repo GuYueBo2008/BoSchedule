@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle, Check, ChevronRight, Download, FileJson, FolderInput, LoaderCircle,
-  UploadCloud,
+  AlertTriangle, Check, ChevronRight, ClipboardPaste, Download, FileJson, FileUp, FolderInput, LoaderCircle,
+  TextQuote, UploadCloud, Users,
 } from 'lucide-react';
 import type { ImportBundle, ScheduleEvent, ScheduleTag, Timetable } from '../types';
-import { createId, DAY_NAMES, downloadText, eventSignature, eventToExport } from '../utils';
+import { createId, DAY_NAMES, decodeShareCode, downloadText, eventSignature, eventToExport } from '../utils';
 import { Field, Modal, TagPicker } from './ui';
 
 export function ExportModal({
@@ -103,6 +103,7 @@ export function ImportModal({
   tags,
   onImport,
   notify,
+  initialCode,
 }: {
   open: boolean;
   onClose: () => void;
@@ -112,6 +113,7 @@ export function ImportModal({
   tags: ScheduleTag[];
   onImport: (events: ScheduleEvent[], newTags: ScheduleTag[]) => void;
   notify: (message: string) => void;
+  initialCode?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [bundle, setBundle] = useState<ImportBundle | null>(null);
@@ -119,6 +121,8 @@ export function ImportModal({
   const [tagMappings, setTagMappings] = useState<Record<string, string>>({});
   const [choices, setChoices] = useState<Record<string, ConflictChoice>>({});
   const [reading, setReading] = useState(false);
+  const [entryMode, setEntryMode] = useState<'file' | 'paste'>('file');
+  const [pasteText, setPasteText] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -126,8 +130,11 @@ export function ImportModal({
       setBundle(null);
       setTagMappings({});
       setChoices({});
+      setEntryMode(initialCode ? 'paste' : 'file');
+      setPasteText(initialCode || '');
+      if (initialCode) void readCode(initialCode);
     }
-  }, [open, activeTimetableId]);
+  }, [open, activeTimetableId, initialCode]);
 
   const unknownTags = useMemo(() => {
     if (!bundle) return [];
@@ -148,23 +155,42 @@ export function ImportModal({
     return local ? [{ imported, local }] : [];
   }), [mappedEvents, events, targetId]);
 
+  function applyBundle(parsed: ImportBundle) {
+    setBundle(parsed);
+    const mappings: Record<string, string> = {};
+    const names = [...new Set(parsed.events.flatMap((event) => event.tags || []))];
+    names.forEach((name) => { if (!tags.some((tag) => tag.name === name)) mappings[name] = '__create__'; });
+    setTagMappings(mappings);
+    setChoices({});
+  }
+
   async function readBundle(file?: File) {
     if (!file) return;
     setReading(true);
     try {
       const parsed = JSON.parse(await file.text()) as ImportBundle;
       if (parsed.app !== 'BoSchedule' || !Array.isArray(parsed.events)) throw new Error('这不是有效的波日程导出文件');
-      setBundle(parsed);
-      const mappings: Record<string, string> = {};
-      const names = [...new Set(parsed.events.flatMap((event) => event.tags || []))];
-      names.forEach((name) => { if (!tags.some((tag) => tag.name === name)) mappings[name] = '__create__'; });
-      setTagMappings(mappings);
-      setChoices({});
+      applyBundle(parsed);
     } catch (error) {
       notify(error instanceof Error ? error.message : '文件读取失败');
     } finally {
       setReading(false);
       if (inputRef.current) inputRef.current.value = '';
+    }
+  }
+
+  async function readCode(code: string) {
+    if (!code.trim()) {
+      notify('请先粘贴好友分享码或分享链接');
+      return;
+    }
+    setReading(true);
+    try {
+      applyBundle(await decodeShareCode(code));
+    } catch (error) {
+      notify(error instanceof Error ? error.message : '分享码解析失败');
+    } finally {
+      setReading(false);
     }
   }
 
@@ -198,11 +224,28 @@ export function ImportModal({
     <Modal open={open} onClose={onClose} title="导入日程" subtitle="选择目标时间表，并妥善处理新标签与时间冲突。" size="large">
       <input ref={inputRef} hidden type="file" accept=".json,.boschedule,application/json" onChange={(event) => readBundle(event.target.files?.[0])} />
       {!bundle ? (
-        <button className="file-dropzone" onClick={() => inputRef.current?.click()}>
-          {reading ? <LoaderCircle size={30} className="spin" /> : <UploadCloud size={30} />}
-          <strong>{reading ? '正在读取文件…' : '选择波日程文件'}</strong>
-          <p>支持 .boschedule.json 文件</p><span>文件仅在本机解析，不会上传到云端</span>
-        </button>
+        <div className="import-entry">
+          <div className="entry-toggle" role="tablist" aria-label="导入方式">
+            <button className={entryMode === 'file' ? 'is-active' : ''} onClick={() => setEntryMode('file')}><FileUp size={16} /> 选择文件</button>
+            <button className={entryMode === 'paste' ? 'is-active' : ''} onClick={() => setEntryMode('paste')}><ClipboardPaste size={16} /> 好友分享码</button>
+          </div>
+          {entryMode === 'file' ? (
+            <button className="file-dropzone" onClick={() => inputRef.current?.click()}>
+              {reading ? <LoaderCircle size={30} className="spin" /> : <UploadCloud size={30} />}
+              <strong>{reading ? '正在读取文件…' : '选择波日程文件'}</strong>
+              <p>支持 .boschedule.json 文件</p><span>文件仅在本机解析，不会上传到云端</span>
+            </button>
+          ) : (
+            <div className="paste-share">
+              <div className="paste-share-head"><Users size={19} /><div><strong>粘贴好友分享码</strong><small>支持 BS1.xxxx 分享码，或 http://…#share=… 分享链接</small></div></div>
+              <textarea value={pasteText} onChange={(event) => setPasteText(event.target.value)} placeholder="在此粘贴好友发来的分享码或分享链接…" rows={6} aria-label="好友分享码输入框" />
+              <div className="modal-actions">
+                <button className="button button-plain" onClick={() => setEntryMode('file')}>改用文件导入</button>
+                <button className="button button-primary" disabled={reading} onClick={() => void readCode(pasteText)}>{reading ? <LoaderCircle size={17} className="spin" /> : <TextQuote size={17} />} {reading ? '正在解析…' : '解析并读取'}</button>
+              </div>
+            </div>
+          )}
+        </div>
       ) : (
         <div className="import-review">
           <div className="file-summary"><span><FileJson size={22} /></span><div><strong>已读取 {bundle.events.length} 项日程</strong><small>导出于 {new Date(bundle.exportedAt).toLocaleString('zh-CN')}</small></div><button onClick={() => { setBundle(null); setChoices({}); }}>重新选择</button></div>

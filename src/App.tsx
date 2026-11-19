@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CalendarCheck, CalendarPlus, CalendarRange, Check, Database, Settings } from 'lucide-react';
 import { createInitialData } from './data';
-import type { AppData, AppSettings, PageKey, ScheduleEvent, ScheduleTag, SyncDevice, SyncInfo, Timetable } from './types';
+import type { AppData, AppSettings, HistoryItem, PageKey, ScheduleEvent, ScheduleTag, SyncDevice, SyncInfo, Timetable } from './types';
 import { createId } from './utils';
 import { SchedulePage } from './pages/SchedulePage';
 import { ImportPage } from './pages/ImportPage';
 import { DataPage } from './pages/DataPage';
+import { ImportModal } from './components/DataTransfer';
 import { SettingsModal } from './components/SettingsModal';
 
 const STORAGE_KEY = 'boschedule-data-v1';
@@ -86,6 +87,7 @@ export default function App() {
   const [connection, setConnection] = useState<SyncConnection | null>(loadConnection);
   const [localSyncInfo, setLocalSyncInfo] = useState<SyncInfo>(initialSyncInfo);
   const [slideDirection, setSlideDirection] = useState<'forward' | 'backward'>('forward');
+  const [shareCode, setShareCode] = useState<string | null>(null);
   const toastTimer = useRef<number | undefined>(undefined);
   const retrying = useRef(false);
   const suppressAutoSync = useRef(false);
@@ -103,6 +105,18 @@ export default function App() {
     const colors = { light: '#f7f9f5', dark: '#151915', ios: '#f2f5f9', ps: '#101721' };
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', colors[data.settings.theme]);
   }, [data.settings.theme]);
+
+  useEffect(() => {
+    const consumeShareHash = () => {
+      const match = (window.location.hash || '').match(/[#&]share=([^&]+)/);
+      if (!match) return;
+      setShareCode(decodeURIComponent(match[1]));
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    };
+    consumeShareHash();
+    window.addEventListener('hashchange', consumeShareHash);
+    return () => window.removeEventListener('hashchange', consumeShareHash);
+  }, []);
 
   useEffect(() => {
     void fetch('/api/sync/info').then(async (response) => {
@@ -279,8 +293,8 @@ export default function App() {
     });
   }
 
-  function recordExport(summary: string) {
-    setData((previous) => ({ ...previous, history: [historyItem('导出', summary), ...previous.history] }));
+  function recordExport(summary: string, action: HistoryItem['action'] = '导出') {
+    setData((previous) => ({ ...previous, history: [historyItem(action, summary), ...previous.history] }));
   }
 
   function updateSettings(settings: Partial<AppSettings>) {
@@ -366,6 +380,17 @@ export default function App() {
 
       <nav className="bottom-nav" aria-label="移动端主导航">{navigation.map((item) => <button key={item.id} className={page === item.id ? 'is-active' : ''} onClick={() => navigatePage(item.id)}><span><item.icon size={21} /></span><small>{item.label}</small></button>)}</nav>
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} settings={data.settings} onChange={updateSettings} />
+      <ImportModal
+        open={shareCode !== null}
+        onClose={() => setShareCode(null)}
+        initialCode={shareCode || undefined}
+        timetables={data.timetables}
+        activeTimetableId={activeTimetable.id}
+        events={data.events}
+        tags={data.tags}
+        onImport={resolveImport}
+        notify={notify}
+      />
       {toast && <div className="toast" key={toast.id}><span><Check size={16} /></span>{toast.message}</div>}
     </div>
   );

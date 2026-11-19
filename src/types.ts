@@ -59,7 +59,7 @@ export interface SyncInfo {
 
 export interface HistoryItem {
   id: string;
-  action: '创建' | '更新' | '删除' | '导入' | '导出' | '同步';
+  action: '创建' | '更新' | '删除' | '导入' | '导出' | '同步' | '分享';
   summary: string;
   timestamp: string;
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FileSpreadsheet, Image as ImageIcon, LoaderCircle, Share2 } from 'lucide-react';
-import type { ScheduleEvent, ScheduleTag, Timetable } from '../types';
-import { DAY_NAMES, downloadDataUrl, eventOccursInWeek, formatMonthDay, getWeekDates, parseWeekSelection } from '../utils';
+import { AlertTriangle, Copy, FileSpreadsheet, Image as ImageIcon, Link2, LoaderCircle, Share2, Users } from 'lucide-react';
+import type { ImportBundle, ScheduleEvent, ScheduleTag, Timetable } from '../types';
+import { DAY_NAMES, downloadDataUrl, encodeShareCode, eventOccursInWeek, eventToExport, formatMonthDay, formatSize, getWeekDates, parseWeekSelection } from '../utils';
 import { Field, Modal, TagPicker } from './ui';
 
 function slotsFor(events: ScheduleEvent[]) {
@@ -52,20 +52,51 @@ export function ShareModal({
   tags: ScheduleTag[];
   currentWeek: number;
   notify: (message: string) => void;
-  onExported: (summary: string) => void;
+  onExported: (summary: string, action?: '分享' | '导出') => void;
 }) {
   const [weeksText, setWeeksText] = useState(String(currentWeek));
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [format, setFormat] = useState<'xlsx' | 'png'>('xlsx');
+  const [format, setFormat] = useState<'xlsx' | 'png' | 'friend'>('xlsx');
+  const [shareResult, setShareResult] = useState<{ code: string; size: number; count: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (open) setWeeksText(String(currentWeek));
+    if (open) {
+      setWeeksText(String(currentWeek));
+      setShareResult(null);
+    }
   }, [open, currentWeek]);
 
   const weeks = useMemo(() => parseWeekSelection(weeksText), [weeksText]);
   const total = weeks.reduce((count, week) => count + eventsForWeek(events, timetable.id, week, selectedTags).length, 0);
+  const friendTotal = useMemo(() => events.filter((event) => event.timetableId === timetable.id && (!selectedTags.length || event.tags.some((tag) => selectedTags.includes(tag)))).length, [events, timetable.id, selectedTags]);
+  const shareLink = shareResult ? `${window.location.origin}${window.location.pathname}#share=${shareResult.code}` : '';
+  const canSystemShare = typeof navigator.share === 'function';
+
+  async function copyText(text: string, message: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      notify(message);
+    } catch {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      const copied = document.execCommand('copy');
+      area.remove();
+      notify(copied ? message : '复制失败，请长按文本手动复制');
+    }
+  }
+
+  async function systemShare() {
+    if (!shareResult) return;
+    try {
+      await navigator.share({ title: `波日程 · ${timetable.name}`, text: `这是我的「${timetable.name}」日程分享码，用波日程导入即可查看：\n${shareResult.code}` });
+    } catch { /* 用户取消了系统分享 */ }
+  }
 
   function tableRows(week: number) {
     const weekEvents = eventsForWeek(events, timetable.id, week, selectedTags);
@@ -92,6 +123,29 @@ export function ShareModal({
   }
 
   async function exportSchedule() {
+    if (format === 'friend') {
+      const selected = events.filter((event) => event.timetableId === timetable.id && (!selectedTags.length || event.tags.some((tag) => selectedTags.includes(tag))));
+      if (!selected.length) {
+        notify('当前筛选条件下没有可分享的日程');
+        return;
+      }
+      setBusy(true);
+      try {
+        const usedTagNames = new Set(selected.flatMap((event) => event.tags));
+        const bundle: ImportBundle = {
+          app: 'BoSchedule', version: 1, exportedAt: new Date().toISOString(),
+          timetables: [timetable], events: selected.map(eventToExport), tags: tags.filter((tag) => usedTagNames.has(tag.name)),
+        };
+        const code = await encodeShareCode(bundle);
+        setShareResult({ code, size: new Blob([code]).size, count: selected.length });
+        onExported(`生成「${timetable.name}」好友分享码，含 ${selected.length} 项日程`, '分享');
+      } catch (error) {
+        notify(error instanceof Error ? `生成分享码失败：${error.message}` : '生成分享码失败，请重试');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     if (!weeks.length) {
       notify('请至少填写一个有效周数');
       return;
@@ -160,20 +214,39 @@ export function ShareModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="分享时间表" subtitle="选择周数与标签，生成清晰的 Excel 或整页图片。" size="large">
+    <Modal open={open} onClose={onClose} title="分享时间表" subtitle="导出 Excel / 长图，或生成分享码发给好友一键导入。" size="large">
+      {shareResult ? (
+        <div className="share-result">
+          <div className="share-result-meta"><Users size={18} /><span>已为「{timetable.name}」生成分享码，含 <strong>{shareResult.count}</strong> 项日程 · {formatSize(shareResult.size)}</span></div>
+          <textarea className="share-code" readOnly value={shareResult.code} rows={5} aria-label="好友分享码" onFocus={(event) => event.currentTarget.select()} />
+          <p className="share-result-hint">好友在「数据同步 → 导入」中粘贴分享码，或直接打开分享链接即可导入副本。</p>
+          {shareResult.size > 1024 * 1024 && <div className="share-size-warning"><AlertTriangle size={15} /><span>分享码超过 1MB，部分聊天工具可能无法发送长文本，建议使用系统分享，或让好友改用导出文件。</span></div>}
+          <div className="share-result-actions">
+            <button className="button button-tonal" onClick={() => void copyText(shareResult.code, '分享码已复制，发给好友即可')}><Copy size={16} /> 复制分享码</button>
+            <button className="button button-tonal" onClick={() => void copyText(shareLink, '链接已复制，好友打开即可导入')}><Link2 size={16} /> 复制链接</button>
+            {canSystemShare && <button className="button button-tonal" onClick={() => void systemShare()}><Share2 size={16} /> 系统分享</button>}
+          </div>
+          <div className="modal-actions">
+            <button className="button button-plain" onClick={() => setShareResult(null)}>返回修改</button>
+            <button className="button button-primary" onClick={onClose}>完成</button>
+          </div>
+        </div>
+      ) : (
       <div className="share-layout">
         <div className="share-options">
-          <Field label="分享周数" hint="可输入 1,3,5-8，支持多周与连续周">
-            <div className="week-input-row">
-              <input value={weeksText} onChange={(event) => setWeeksText(event.target.value)} placeholder="例如：1,3,5-8" />
-              <button className="button button-tonal" onClick={() => setWeeksText(String(currentWeek))}>本周</button>
-            </div>
-          </Field>
-          <Field label="标签筛选" hint="不选择标签时，将分享全部日程">
+          {format !== 'friend' && (
+            <Field label="分享周数" hint="可输入 1,3,5-8，支持多周与连续周">
+              <div className="week-input-row">
+                <input value={weeksText} onChange={(event) => setWeeksText(event.target.value)} placeholder="例如：1,3,5-8" />
+                <button className="button button-tonal" onClick={() => setWeeksText(String(currentWeek))}>本周</button>
+              </div>
+            </Field>
+          )}
+          <Field label="标签筛选" hint={format === 'friend' ? '不选择标签时，将分享该时间表的全部日程' : '不选择标签时，将分享全部日程'}>
             <TagPicker tags={tags} value={selectedTags} onChange={setSelectedTags} />
           </Field>
           <div className="field">
-            <span className="field-label">文件格式</span>
+            <span className="field-label">分享方式</span>
             <div className="format-options">
               <button className={format === 'xlsx' ? 'is-selected' : ''} onClick={() => setFormat('xlsx')}>
                 <FileSpreadsheet size={23} /><strong>Excel 表格</strong><small>.xlsx · 每周一个工作表</small>
@@ -181,15 +254,19 @@ export function ShareModal({
               <button className={format === 'png' ? 'is-selected' : ''} onClick={() => setFormat('png')}>
                 <ImageIcon size={23} /><strong>长图</strong><small>.png · 多周整页导出</small>
               </button>
+              <button className={format === 'friend' ? 'is-selected' : ''} onClick={() => setFormat('friend')}>
+                <Users size={23} /><strong>好友分享</strong><small>分享码 / 链接 · 对方一键导入</small>
+              </button>
             </div>
           </div>
           <div className="share-summary">
-            <Share2 size={18} /><span>将分享 <strong>{weeks.length}</strong> 周，共 <strong>{total}</strong> 项日程</span>
+            <Share2 size={18} />
+            <span>{format === 'friend' ? <>将分享「{timetable.name}」的 <strong>{friendTotal}</strong> 项日程，含周期规则、地点与图片</> : <>将分享 <strong>{weeks.length}</strong> 周，共 <strong>{total}</strong> 项日程</>}</span>
           </div>
           <div className="modal-actions">
             <button className="button button-plain" onClick={onClose}>取消</button>
-            <button className="button button-primary" onClick={exportSchedule} disabled={busy || !weeks.length}>
-              {busy && <LoaderCircle size={17} className="spin" />} {busy ? '正在生成…' : '导出并分享'}
+            <button className="button button-primary" onClick={() => void exportSchedule()} disabled={busy || (format === 'friend' ? !friendTotal : !weeks.length)}>
+              {busy && <LoaderCircle size={17} className="spin" />} {busy ? '正在生成…' : format === 'friend' ? '生成分享码' : '导出并分享'}
             </button>
           </div>
         </div>
@@ -197,7 +274,7 @@ export function ShareModal({
           <div className="share-preview-paper">
             <span className="preview-kicker">BO SCHEDULE</span>
             <h3>{timetable.name}</h3>
-            <p>{weeks.length ? `第 ${weeks.join('、')} 周` : '选择需要分享的周数'}</p>
+            <p>{format === 'friend' ? `共 ${friendTotal} 项日程` : weeks.length ? `第 ${weeks.join('、')} 周` : '选择需要分享的周数'}</p>
             <div className="preview-grid">
               {DAY_NAMES.map((day) => <span key={day}>{day.slice(1)}</span>)}
               {Array.from({ length: 28 }, (_, index) => <i key={index} className={[1, 4, 8, 11, 15, 18, 24].includes(index) ? `filled fill-${index % 4}` : ''} />)}
@@ -206,6 +283,7 @@ export function ShareModal({
           </div>
         </div>
       </div>
+      )}
       <div className="share-print-root" ref={printRef}>
         <h1>{timetable.name} · 波日程</h1>
         {weeks.map((week) => {

@@ -44,7 +44,7 @@ export function SchedulePage({
   onDeleteEvent: (id: string) => void;
   onNavigateImport: () => void;
   notify: (message: string) => void;
-  onExported: (summary: string) => void;
+  onExported: (summary: string, action?: '分享' | '导出') => void;
 }) {
   const [currentWeek, setCurrentWeek] = useState(() => getCurrentWeek(timetable.termStart));
   const [selectedDay, setSelectedDay] = useState(() => (new Date().getDay() + 6) % 7);

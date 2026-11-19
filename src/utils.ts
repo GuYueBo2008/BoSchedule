@@ -1,4 +1,4 @@
-import type { EventColor, ScheduleEvent } from './types';
+import type { EventColor, ImportBundle, ScheduleEvent } from './types';
 
 export const EVENT_COLORS: Record<EventColor, { bg: string; accent: string; label: string }> = {
   sage: { bg: '#dcefe3', accent: '#39745c', label: '鼠尾草绿' },
@@ -127,4 +127,76 @@ export function eventSignature(event: ScheduleEvent) {
 
 export function eventToExport(event: ScheduleEvent): ScheduleEvent {
   return { ...event, tags: [...event.tags], images: [...event.images] };
+}
+
+const SHARE_GZIP_PREFIX = 'BS1';
+const SHARE_RAW_PREFIX = 'BS0';
+
+function bytesToBase64Url(bytes: Uint8Array) {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64UrlToBytes(value: string) {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(normalized + '='.repeat((4 - (normalized.length % 4)) % 4));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+async function gzipBytes(bytes: Uint8Array) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function gunzipBytes(bytes: Uint8Array) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/** 从粘贴内容中提取分享码：支持纯编码、`#share=` 链接，容忍空白与换行。 */
+export function extractShareCode(input: string) {
+  const text = input.trim();
+  if (!text) return '';
+  const fromLink = text.match(/[#&?/]share=([^&\s]+)/);
+  if (fromLink) return fromLink[1];
+  return text.replace(/\s+/g, '');
+}
+
+/** 将导入包压缩编码为可复制的好友分享码。 */
+export async function encodeShareCode(bundle: ImportBundle) {
+  const bytes = new TextEncoder().encode(JSON.stringify(bundle));
+  try {
+    const packed = await gzipBytes(bytes);
+    if (packed.length < bytes.length) return `${SHARE_GZIP_PREFIX}.${bytesToBase64Url(packed)}`;
+  } catch { /* 环境不支持压缩流时降级为原始编码 */ }
+  return `${SHARE_RAW_PREFIX}.${bytesToBase64Url(bytes)}`;
+}
+
+/** 解码好友分享码（兼容粘贴链接、多余空白），返回导入包。 */
+export async function decodeShareCode(input: string): Promise<ImportBundle> {
+  const code = extractShareCode(input);
+  const match = code.match(/^(BS[01])\.(.+)$/);
+  if (!match) throw new Error('分享码格式不正确，请完整粘贴好友分享的编码或链接');
+  const [, prefix, payload] = match;
+  try {
+    const bytes = prefix === SHARE_GZIP_PREFIX ? await gunzipBytes(base64UrlToBytes(payload)) : base64UrlToBytes(payload);
+    const parsed = JSON.parse(new TextDecoder().decode(bytes)) as ImportBundle;
+    if (parsed.app !== 'BoSchedule' || !Array.isArray(parsed.events)) throw new Error('内容不是波日程分享');
+    return parsed;
+  } catch (error) {
+    if (error instanceof Error && error.message === '内容不是波日程分享') throw error;
+    throw new Error('分享码不完整或已损坏，请让好友重新复制完整内容');
+  }
+}
+
+export function formatSize(bytes: number) {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
 }
