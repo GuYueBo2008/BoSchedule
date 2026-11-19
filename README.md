@@ -76,6 +76,26 @@ npm start          # http://localhost:4173
 
 `npm run build` 会先执行 TypeScript 类型检查，再将产物输出到 `dist/`。
 
+### 桌面版（Windows EXE，Electron）
+
+```bash
+npm run pack:win   # 构建 + electron-builder 打包
+```
+
+- 产物：`build/windows/BoSchedule-<版本>-portable.exe`（单文件免安装版，双击运行）与 `win-unpacked/`（绿色目录版）
+- 应用内嵌本地同步服务，桌面端同样支持局域网同步与手机扫码同步
+- 如需 NSIS 安装向导，在支持 32 位 wine 的环境执行 `npx electron-builder --win nsis --x64`
+
+### Android APK（Capacitor）
+
+```bash
+npm run pack:android   # 构建 + cap sync + gradle assembleDebug
+```
+
+- 前置要求：`ANDROID_HOME` 指向 Android SDK（platform 36 + build-tools 36），JDK 17+，Gradle 8.14
+- 产物：`build/android/BoSchedule-Android-<版本>.apk`
+- APK 内置完整前端，好友分享码、扫码同步页均可用；局域网同步在 APK 中作为客户端连接电脑端服务
+
 ## 局域网同步
 
 同步服务随生产服务一起启动，监听 `0.0.0.0:4173`，同一局域网内的手机与电脑可互相访问。

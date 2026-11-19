@@ -24,6 +24,15 @@ allprojects {
     }
 }
 
+// 沙箱环境只装了 build-tools 36.0.0，统一覆盖所有模块的默认版本
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            project.android.buildToolsVersion "36.0.0"
+        }
+    }
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
