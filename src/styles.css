@@ -528,6 +528,16 @@ input[type='number'] { font-variant-numeric: tabular-nums; }
 .qr-url-fallback { align-self: stretch; color: var(--muted); font-size: 11.5px; }
 .qr-url-fallback summary { cursor: pointer; }
 .qr-url-fallback code { display: block; margin-top: 6px; padding: 8px 10px; border-radius: 8px; background: var(--surface-soft); word-break: break-all; }
+.qr-address-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; align-self: stretch; }
+.qr-address-label { font-size: 11px; color: var(--muted); font-weight: 650; }
+.qr-address-chip { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 600; cursor: pointer; }
+.qr-address-chip.is-active { background: var(--primary-soft); border-color: color-mix(in srgb, var(--primary) 45%, transparent); color: var(--primary); }
+.qr-help { align-self: stretch; color: var(--muted); font-size: 11.5px; }
+.qr-help summary { cursor: pointer; }
+.qr-help-body { margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: var(--surface-soft); display: grid; gap: 7px; text-align: left; }
+.qr-help-body p { margin: 0; line-height: 1.55; }
+.qr-help-body b { color: var(--text); }
+.qr-help-body code { padding: 1px 5px; border-radius: 5px; background: var(--surface); font-size: 10.5px; }
 .qr-waiting { display: inline-flex; align-items: center; gap: 7px; color: var(--primary); font-size: 12px; font-weight: 650; }
 .qr-state { display: grid; justify-items: center; gap: 9px; padding: 26px 8px; color: var(--muted); font-size: 12.5px; text-align: center; }
 .qr-state.is-done { color: var(--primary); }

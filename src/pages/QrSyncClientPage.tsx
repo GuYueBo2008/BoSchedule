@@ -72,7 +72,10 @@ export function QrSyncClientPage({ token }: { token: string }) {
         setLocal(localSummary(readLocalData()));
         setPhase('ready');
       } catch (err) {
-        setError(err instanceof Error ? err.message : '同步会话不可用');
+        const message = err instanceof TypeError
+          ? '无法连接到电脑。请确认手机与电脑连的是同一个 Wi-Fi；校园网等公共网络常开启 AP 隔离，可让电脑开热点后重新扫码。'
+          : (err instanceof Error ? err.message : '同步会话不可用');
+        setError(message);
         setPhase('error');
       }
     })();
